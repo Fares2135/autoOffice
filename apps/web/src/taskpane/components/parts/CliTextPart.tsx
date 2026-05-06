@@ -235,7 +235,9 @@ export function CliTextPart({ text, isHistorical, autoApprove, runInIframe, high
         const badgeColor: 'informative' | 'success' | 'danger' =
           state.status === 'done' ? 'success' :
           state.status === 'error' ? 'danger' : 'informative';
-        const showResult = state.status === 'done' || state.status === 'error';
+        const showResult =
+          (state.status === 'done' && state.output !== undefined) ||
+          (state.status === 'error' && !!state.error);
         const resultText = state.status === 'error'
           ? state.error ?? ''
           : state.output !== undefined
@@ -274,7 +276,7 @@ export function CliTextPart({ text, isHistorical, autoApprove, runInIframe, high
             {showResult && (
               <details
                 className={`${styles.details} ${state.status === 'error' ? styles.detailsError : ''}`}
-                open={state.status === 'error'}
+                open
               >
                 <summary className={`${styles.summary} ${state.status === 'error' ? styles.summaryError : ''}`} style={{ direction: 'ltr', textAlign: 'left' }}>
                   {state.status === 'error' ? 'Error details' : 'Result'}
