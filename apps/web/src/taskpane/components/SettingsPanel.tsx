@@ -185,6 +185,7 @@ const PROVIDER_KINDS: { value: ProviderKind; label: string }[] = [
   { value: 'ollama', label: 'Ollama' },
   { value: 'openai-compatible', label: 'OpenAI-compatible' },
   { value: 'vercel-gateway', label: 'Vercel AI Gateway' },
+  { value: 'claude-code', label: 'Claude Code (CLI)' },
   { value: 'gemini-cli', label: 'Gemini CLI' },
   { value: 'opencode', label: 'OpenCode (CLI)' },
 ];

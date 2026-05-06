@@ -18,7 +18,8 @@
       "Bash(curl -sL \"https://registry.npmjs.org/@ai-sdk/mcp/-/mcp-1.0.25.tgz\")",
       "Bash(tar xz *)",
       "Bash(curl -sL https://registry.npmjs.org/@ai-sdk/mcp/-/mcp-__TRACKED_VAR__.tgz)",
-      "Bash(bun install *)"
+      "Bash(bun install *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

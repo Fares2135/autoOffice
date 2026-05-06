@@ -6,6 +6,9 @@ import { ExecuteCodePart } from './parts/ExecuteCodePart';
 import { LookupSkillPart } from './parts/LookupSkillPart';
 import { DynamicToolPart } from './parts/DynamicToolPart';
 import { ApprovalRequestedPart } from './parts/ApprovalRequestedPart';
+import { CliTextPart, hasCliTools } from './parts/CliTextPart';
+import { isCliBridge } from '@autooffice/shared';
+import type { ProviderConfig, ProviderKind } from '@autooffice/shared';
 
 const useStyles = makeStyles({
   container: {
@@ -89,6 +92,12 @@ export type MessageBubbleProps = {
   highlightCode: (code: string) => React.ReactNode;
   /** Show a small progress spinner next to the model id while this message streams. */
   streaming?: boolean;
+  providers?: ProviderConfig[];
+  onCliResolved?: (resultText: string) => void;
+  autoApprove?: boolean;
+  runInIframe?: (code: string) => Promise<unknown>;
+  /** True when this assistant message already has a tool_results reply in history. */
+  cliHistorical?: boolean;
 };
 
 export function MessageBubble({
@@ -98,12 +107,19 @@ export function MessageBubble({
   onApprovalResponse,
   highlightCode,
   streaming = false,
+  providers = [],
+  onCliResolved,
+  autoApprove = false,
+  runInIframe,
+  cliHistorical = false,
 }: MessageBubbleProps) {
   const styles = useStyles();
   const bubbleClass = message.role === 'user' ? styles.userBubble : styles.assistantBubble;
   const meta = (message.metadata ?? null) as
     | { createdAt?: number; modelId?: string; providerId?: string }
     | null;
+  const providerKind = providers.find(p => p.id === meta?.providerId)?.kind as ProviderKind | undefined;
+  const isCliMsg = providerKind ? isCliBridge(providerKind) : false;
   const ts = typeof meta?.createdAt === 'number' ? meta.createdAt : undefined;
   const modelId = typeof meta?.modelId === 'string' ? meta.modelId : undefined;
   const metaClass = message.role === 'user' ? styles.metaUser : styles.metaAssistant;
@@ -113,8 +129,24 @@ export function MessageBubble({
       <div className={bubbleClass}>
         {message.parts.map((part, idx) => {
           switch (part.type) {
-            case 'text':
-              return <TextPart key={idx} part={part as unknown as { text: string }} />;
+            case 'text': {
+              const text = (part as unknown as { text: string }).text;
+              // Only mount CliTextPart after streaming completes — never mid-stream.
+              if (isCliMsg && !streaming && hasCliTools(text) && onCliResolved && runInIframe) {
+                return (
+                  <CliTextPart
+                    key={idx}
+                    text={text}
+                    isHistorical={cliHistorical}
+                    autoApprove={autoApprove}
+                    runInIframe={runInIframe}
+                    highlightCode={highlightCode}
+                    onAllResolved={onCliResolved}
+                  />
+                );
+              }
+              return <TextPart key={idx} part={{ text }} />;
+            }
             case 'step-start':
               return idx > 0 ? <StepStartPart key={idx} /> : null;
             case 'tool-execute_code':

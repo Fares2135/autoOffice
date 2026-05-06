@@ -9,6 +9,7 @@ type ToolMap = Record<string, Tool<any, any>>;
 export type AssembleArgs = {
   host: Host;
   mcpTools: ChatToolWrapper[];
+  isCliBridge?: boolean;
 };
 
 function sanitizeToolName(name: string): string {
@@ -17,8 +18,8 @@ function sanitizeToolName(name: string): string {
   return s.slice(0, 128);
 }
 
-export function assembleTools({ host, mcpTools }: AssembleArgs): ToolMap {
-  const out: ToolMap = {
+export function assembleTools({ host, mcpTools, isCliBridge }: AssembleArgs): ToolMap {
+  const out: ToolMap = isCliBridge ? {} : {
     lookup_skill: makeLookupSkillTool({ host }),
     execute_code: makeExecuteCodeTool(),
   };

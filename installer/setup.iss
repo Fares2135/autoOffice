@@ -34,6 +34,8 @@ Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 [Files]
 Source: "..\manifest.production.xml"; DestDir: "{app}"; DestName: "manifest.xml"; Flags: ignoreversion
 Source: "..\apps\server\dist\autoOffice-server.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "launcher.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\apps\web\dist\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Registry]
 ; Only register our own trusted catalog when none already exists. Office's
@@ -143,7 +145,7 @@ begin
       TargetFile := HostCatalogUrl + '\autooffice.xml'
     else
       TargetFile := '{#OwnSharePath}\manifest.xml';
-    if not FileCopy(ExpandConstant('{app}\manifest.xml'), TargetFile, False) then
+    if not CopyFile(ExpandConstant('{app}\manifest.xml'), TargetFile, False) then
       MsgBox('Warning: Could not copy manifest to share folder: ' + TargetFile, mbInformation, MB_OK);
     // Record where we placed the manifest so the uninstaller can remove it.
     RegWriteStringValue(HKCU, 'Software\AutoOffice\Installer', 'ManifestPath', TargetFile);
@@ -181,7 +183,7 @@ end;
 
 [Run]
 Filename: "{app}\autoOffice-server.exe"; Parameters: "--first-run-init"; Flags: runhidden waituntilterminated; StatusMsg: "Initializing AutoOffice (cert + token) ..."
-Filename: "schtasks.exe"; Parameters: "/Create /F /SC ONLOGON /TN ""AutoOffice\Service"" /TR ""\""{app}\autoOffice-server.exe\"""" /RL LIMITED"; Flags: runhidden waituntilterminated; StatusMsg: "Registering AutoOffice Service ..."
+Filename: "schtasks.exe"; Parameters: "/Create /F /SC ONLOGON /TN ""AutoOffice\Service"" /TR ""wscript.exe //B //NoLogo {app}\launcher.vbs"" /RL LIMITED"; Flags: runhidden waituntilterminated; StatusMsg: "Registering AutoOffice Service ..."
 Filename: "schtasks.exe"; Parameters: "/Run /TN ""AutoOffice\Service"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting AutoOffice Service ..."
 
 [Messages]

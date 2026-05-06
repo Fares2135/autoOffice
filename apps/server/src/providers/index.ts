@@ -41,6 +41,10 @@ export class ProviderRegistry {
     return listModelsForProvider(cfg.kind, apiKey, cfg.config);
   }
 
+  getKind(providerId: string): ProviderKind | null {
+    return this.repo.get(providerId)?.kind ?? null;
+  }
+
   async getStatus(providerId: string): Promise<ProbeStatus> {
     const cfg = this.repo.get(providerId);
     if (!cfg) return 'unknown';

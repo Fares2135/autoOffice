@@ -17,6 +17,7 @@ import {
 import type { HostContext } from '../host/context.ts';
 import { useTranslation } from '../i18n/index.ts';
 import { MessageBubble, type UIMessageLike } from './MessageBubble.tsx';
+import type { ProviderConfig } from '@autooffice/shared';
 
 const useStyles = makeStyles({
   container: {
@@ -113,6 +114,10 @@ export interface ChatPanelProps {
   chatError?: string | null;
   /** True when no provider is configured/selected; disables send and shows banner. */
   noProvider?: boolean;
+  providers?: ProviderConfig[];
+  autoApprove?: boolean;
+  runInIframe?: (code: string) => Promise<unknown>;
+  onCliResolved?: (resultText: string) => void;
   onSubmit: (text: string) => void;
   onApproveCode: (toolCallId: string, code: string) => Promise<void> | void;
   onRejectCode: (toolCallId: string) => void;
@@ -142,6 +147,10 @@ export function ChatPanel({
   status,
   chatError,
   noProvider,
+  providers = [],
+  autoApprove = false,
+  runInIframe,
+  onCliResolved,
   onSubmit,
   onApproveCode,
   onRejectCode,
@@ -291,19 +300,41 @@ export function ChatPanel({
             </Text>
           </div>
         ) : (
-          messages.map((msg, i) => (
-            <MessageBubble
-              key={msg.id ?? i}
-              message={msg}
-              onApproveCode={onApproveCode}
-              onRejectCode={onRejectCode}
-              onApprovalResponse={onApprovalResponse}
-              highlightCode={highlightCode}
-              streaming={
-                isLoading && i === messages.length - 1 && msg.role === 'assistant'
+          (() => {
+            // Detect synthetic tool_results messages (any text part starting with <tool_results>).
+            const isSynthetic = (m: UIMessageLike) =>
+              m.role === 'user' &&
+              m.parts.some(p => typeof (p as any).text === 'string' && (p as any).text.startsWith('<tool_results>'));
+
+            // Build set of assistant message IDs that already have a tool_results reply.
+            const resolvedIds = new Set<string>();
+            for (let i = 0; i < messages.length - 1; i++) {
+              const cur = messages[i]!;
+              const next = messages[i + 1]!;
+              if (cur.role === 'assistant' && isSynthetic(next) && cur.id) {
+                resolvedIds.add(cur.id);
               }
-            />
-          ))
+            }
+
+            return messages
+              .filter(m => !isSynthetic(m))
+              .map((msg, i, arr) => (
+                <MessageBubble
+                  key={msg.id ?? i}
+                  message={msg}
+                  onApproveCode={onApproveCode}
+                  onRejectCode={onRejectCode}
+                  onApprovalResponse={onApprovalResponse}
+                  highlightCode={highlightCode}
+                  streaming={isLoading && i === arr.length - 1 && msg.role === 'assistant'}
+                  providers={providers}
+                  onCliResolved={onCliResolved}
+                  autoApprove={autoApprove}
+                  runInIframe={runInIframe}
+                  cliHistorical={resolvedIds.has(msg.id ?? '')}
+                />
+              ));
+          })()
         )}
         <div ref={messagesEndRef} />
       </div>

@@ -1,7 +1,10 @@
-import { spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 export async function installCertToCurrentUserRoot(certPem: string): Promise<void> {
   if (process.platform !== 'win32') {
@@ -10,38 +13,20 @@ export async function installCertToCurrentUserRoot(certPem: string): Promise<voi
   if (!/-----BEGIN CERTIFICATE-----/.test(certPem)) {
     throw new Error('Expected PEM-encoded certificate');
   }
-  const path = join(tmpdir(), `autooffice-${Date.now()}.cer`);
-  writeFileSync(path, certPem, 'utf8');
+  const certPath = join(tmpdir(), `autooffice-${Date.now()}.cer`);
+  writeFileSync(certPath, certPem, 'utf8');
   try {
-    await runPowerShell([
-      '-NoProfile',
-      '-Command',
-      `Import-Certificate -FilePath '${path.replace(/'/g, "''")}' -CertStoreLocation Cert:\\CurrentUser\\Root | Out-Null`,
-    ]);
+    // certutil -addstore targets LocalMachine\Root and requires admin elevation,
+    // which the installer always provides. It handles PEM format natively and
+    // exits non-zero on any failure — more reliable than Import-Certificate.
+    await execFileAsync('certutil', ['-addstore', 'Root', certPath]);
   } finally {
-    try { unlinkSync(path); } catch { /* noop */ }
+    try { unlinkSync(certPath); } catch { /* noop */ }
   }
 }
 
 export async function uninstallCertByFingerprint(fingerprintHex: string): Promise<void> {
   if (process.platform !== 'win32') return;
   const fp = fingerprintHex.replace(/[^A-F0-9]/gi, '').toUpperCase();
-  await runPowerShell([
-    '-NoProfile',
-    '-Command',
-    `Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object { $_.Thumbprint -eq '${fp}' } | Remove-Item`,
-  ]);
-}
-
-function runPowerShell(args: string[]): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const proc = spawn('powershell.exe', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let err = '';
-    proc.stderr.on('data', (d) => { err += d.toString(); });
-    proc.on('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`powershell exit ${code}: ${err}`));
-    });
-    proc.on('error', reject);
-  });
+  await execFileAsync('certutil', ['-delstore', 'Root', fp]);
 }

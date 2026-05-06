@@ -7,7 +7,7 @@ import {
   createIdGenerator,
 } from 'ai';
 import type { LanguageModel } from 'ai';
-import { HostSchema, type Host } from '@autooffice/shared';
+import { HostSchema, type Host, isCliBridge } from '@autooffice/shared';
 import type { ConversationsRepo } from '../db/conversations';
 import type { MessagesRepo } from '../db/messages';
 import type { ProviderRegistry } from '../providers';
@@ -108,11 +108,13 @@ export function chatRouter(deps: ChatDeps) {
 
     const swept = sweepOrphans(merged as any) as typeof merged;
     const mcpTools = deps.hub.toolsForChat();
-    const tools = assembleTools({ host: host as Host, mcpTools });
+    const providerKind = deps.registry.getKind(providerId);
+    const cliMode = providerKind ? isCliBridge(providerKind) : false;
+    const tools = assembleTools({ host: host as Host, mcpTools, isCliBridge: cliMode });
 
     const result = streamText({
       model,
-      system: systemPromptForHost(host as Host),
+      system: systemPromptForHost(host as Host, { isCliBridge: cliMode }),
       messages: await convertToModelMessages(swept as any),
       tools,
       stopWhen: stepCountIs(20),

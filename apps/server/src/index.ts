@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { createApp } from './app';
 import { openDb } from './db/index';
 import { HOST, IS_DEV, VERSION, dbPath, resolveDataDir, AUTH_TOKEN } from './env';
@@ -84,6 +84,22 @@ if (cfg?.certPath && cfg?.keyPath) {
         'or set AUTOOFFICE_NO_TLS=1 to silence this warning.',
     );
   }
+}
+
+// Production: serve the pre-built web app as static files from {exe-dir}/web/
+if (!IS_DEV) {
+  const webDir = join(dirname(process.execPath), 'web');
+  app.use('*', async (c, next) => {
+    const p = c.req.path;
+    if (p.startsWith('/api') || p === '/health' || p.startsWith('/bootstrap')) {
+      return next();
+    }
+    const filePath = join(webDir, p === '/' ? 'index.html' : p);
+    const file = Bun.file(filePath);
+    if (await file.exists()) return new Response(file);
+    // SPA fallback
+    return new Response(Bun.file(join(webDir, 'index.html')));
+  });
 }
 
 const server = Bun.serve(serveOpts);

@@ -14,7 +14,7 @@ import { Sandbox } from './executor/sandbox.ts';
 import { bootstrap, apiGet, apiSend } from './api.ts';
 import { makeChatTransport } from './chat/transport.ts';
 import { makeOnToolCall } from './chat/on-tool-call.ts';
-import type { Settings, Message } from '@autooffice/shared';
+import type { Settings, Message, ProviderConfig } from '@autooffice/shared';
 import { newId } from '@autooffice/shared';
 import { detectLegacy } from './legacy/detect.ts';
 import { pack } from './legacy/pack.ts';
@@ -55,6 +55,7 @@ export function App({ host }: AppProps) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   // Defer POST /api/conversations until the user sends a message, so opening
@@ -74,9 +75,13 @@ export function App({ host }: AppProps) {
     (async () => {
       try {
         await bootstrap();
-        const s = await apiGet<Settings>('/api/settings');
+        const [s, p] = await Promise.all([
+          apiGet<Settings>('/api/settings'),
+          apiGet<ProviderConfig[]>('/api/providers'),
+        ]);
         if (cancelled) return;
         setSettings(s);
+        setProviders(p);
         setConversationId(newId('c'));
         setInitialMessages([]);
         setPersisted(false);
@@ -162,6 +167,7 @@ export function App({ host }: AppProps) {
         conversationId={conversationId}
         initialMessages={initialMessages}
         settings={settings}
+        providers={providers}
         ensurePersisted={ensurePersisted}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenHistory={() => setHistoryOpen(true)}
@@ -199,6 +205,7 @@ function ChatScreen({
   conversationId,
   initialMessages,
   settings,
+  providers,
   ensurePersisted,
   onOpenSettings,
   onOpenHistory,
@@ -208,6 +215,7 @@ function ChatScreen({
   conversationId: string;
   initialMessages: Message[];
   settings: Settings;
+  providers: ProviderConfig[];
   ensurePersisted: () => Promise<void>;
   onOpenSettings: () => void;
   onOpenHistory: () => void;
@@ -267,6 +275,11 @@ function ChatScreen({
 
   const highlightCode = useHighlightCode();
 
+  const handleCliResolved = useCallback(async (resultText: string) => {
+    await ensurePersisted();
+    await sendMessage({ text: resultText });
+  }, [ensurePersisted, sendMessage]);
+
   return (
     <ChatPanel
       host={host}
@@ -274,6 +287,10 @@ function ChatScreen({
       status={status as any}
       noProvider={noProvider}
       chatError={error ? error.message : null}
+      providers={providers}
+      autoApprove={settings.autoApprove}
+      runInIframe={runInIframe}
+      onCliResolved={handleCliResolved}
       onSubmit={async (text) => {
         await ensurePersisted();
         await sendMessage({ text });

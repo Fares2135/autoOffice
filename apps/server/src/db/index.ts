@@ -1,9 +1,12 @@
 import { Database } from 'bun:sqlite';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
+import migration001 from './migrations/001_initial.sql' with { type: 'text' };
+import migration002 from './migrations/002_provider_mcp.sql' with { type: 'text' };
+
+const MIGRATIONS: Array<[number, string]> = [
+  [1, migration001],
+  [2, migration002],
+];
 
 export type DbConfig = { url: string };
 
@@ -25,18 +28,12 @@ export function openDb(cfg: DbConfig): Database {
     ),
   );
 
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => /^\d+_.+\.sql$/.test(f))
-    .sort();
-
   const insertStmt = db.prepare(
     'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)',
   );
 
-  for (const file of files) {
-    const version = Number(file.split('_', 1)[0]);
+  for (const [version, sql] of MIGRATIONS) {
     if (applied.has(version)) continue;
-    const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
     db.exec('BEGIN');
     try {
       db.exec(sql);
@@ -44,7 +41,7 @@ export function openDb(cfg: DbConfig): Database {
       db.exec('COMMIT');
     } catch (err) {
       db.exec('ROLLBACK');
-      throw new Error(`Migration ${file} failed: ${(err as Error).message}`);
+      throw new Error(`Migration ${version} failed: ${(err as Error).message}`);
     }
   }
 

@@ -27,6 +27,22 @@ Office.js performance rules (always follow these when generating code):
 - Use range.font.set({ bold: true, color: "red" }) instead of setting properties one by one when convenient.
 `;
 
-export function systemPromptForHost(host: Host): string {
-  return `${PER_HOST[host]}\n${COMMON}`.trim();
+const CLI_BRIDGE_TOOLS = `
+CLI Tool Format (use these exact tags — no JSON tool-call syntax):
+
+To fetch office.js API docs before writing code for a domain you haven't read yet:
+<lookup_skill>skill_name</lookup_skill>
+
+To execute JavaScript against the live document:
+<execute_code>
+// code here — top-level body, context available, must await context.sync()
+</execute_code>
+
+Output one tool tag at a time. Wait for the result in the next user message before continuing.
+Results arrive wrapped in <tool_results>...</tool_results>.
+`;
+
+export function systemPromptForHost(host: Host, opts?: { isCliBridge?: boolean }): string {
+  const base = `${PER_HOST[host]}\n${COMMON}`.trim();
+  return opts?.isCliBridge ? `${base}\n${CLI_BRIDGE_TOOLS}`.trim() : base;
 }
