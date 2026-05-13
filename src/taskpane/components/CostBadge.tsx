@@ -25,7 +25,9 @@ const useStyles = makeStyles({
 interface Row { labelKey: 'cost.input' | 'cost.cachedRead' | 'cost.cacheWrite' | 'cost.output';
                 tokens: number; usd: number }
 
-export function CostBadge({ cost }: { cost: CallCost | undefined }) {
+const LOCAL_PROVIDERS = new Set(['lmstudio', 'ollama']);
+
+export function CostBadge({ cost, providerId }: { cost: CallCost | undefined; providerId?: string }) {
   const styles = useStyles();
   const { t } = useTranslation();
   if (!cost || (cost.totalUsd === 0 && cost.tokens.input === 0 && cost.tokens.output === 0
@@ -46,11 +48,13 @@ export function CostBadge({ cost }: { cost: CallCost | undefined }) {
     ] satisfies Row[]
   ).filter(r => r.tokens > 0 || r.usd > 0);
 
+  const isLocal = providerId !== undefined && LOCAL_PROVIDERS.has(providerId);
   const sourceLabel =
-    cost.source === 'gateway-exact'    ? t('cost.sourceGatewayExact') :
-    cost.source === 'openrouter-exact' ? t('cost.sourceOpenRouterExact') :
-    cost.source === 'tokens-only'      ? t('cost.sourceTokensOnly') :
-                                         t('cost.sourceEstimated', { version: PRICING_VERSION });
+    cost.source === 'gateway-exact'         ? t('cost.sourceGatewayExact') :
+    cost.source === 'openrouter-exact'      ? t('cost.sourceOpenRouterExact') :
+    cost.source === 'tokens-only' && isLocal ? t('cost.sourceLocalFree') :
+    cost.source === 'tokens-only'           ? t('cost.sourceTokensOnly') :
+                                              t('cost.sourceEstimated', { version: PRICING_VERSION });
 
   return (
     <Popover withArrow positioning="below-end">

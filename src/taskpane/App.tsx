@@ -343,6 +343,7 @@ export function App({ host }: AppProps) {
         pendingApproval={pendingApproval}
         activeChatHost={activeChatHost}
         cost={activeCost}
+        providerId={settings.selectedProviderId}
         onSend={handleSend}
         onApprove={handleApprove}
         onOpenSettings={() => setShowSettings(true)}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   makeStyles,
   tokens,
@@ -10,6 +10,9 @@ import {
   Text,
   Divider,
   Field,
+  Badge,
+  Spinner,
+  Tooltip,
 } from '@fluentui/react-components';
 import {
   ArrowLeft24Regular,
@@ -17,9 +20,11 @@ import {
   Delete24Regular,
   Eye24Regular,
   EyeOff24Regular,
+  ArrowClockwise24Regular,
 } from '@fluentui/react-icons';
 import type { AppSettings, McpServerConfig } from '../store/settings.ts';
 import { useTranslation, availableLocales, type LocaleId } from '../i18n/index.ts';
+import { discoverLmStudioModels, type LmStudioModel, type LmStudioStatus } from '../agent/lmstudio.ts';
 
 const useStyles = makeStyles({
   container: {
@@ -64,6 +69,12 @@ const useStyles = makeStyles({
   },
   keyInput: {
     flex: 1,
+  },
+  statusRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    minHeight: '24px',
   },
 });
 
@@ -122,11 +133,12 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   gateway: [],
   openrouter: [],
   ollama: [],
+  lmstudio: [],
   'openai-compatible': [],
 };
 
-const PROVIDERS_WITH_BASE_URL = new Set(['openai-compatible', 'openrouter', 'ollama']);
-const PROVIDERS_WITHOUT_API_KEY = new Set(['ollama']);
+const PROVIDERS_WITH_BASE_URL = new Set(['openai-compatible', 'openrouter', 'ollama', 'lmstudio']);
+const PROVIDERS_WITHOUT_API_KEY = new Set(['ollama', 'lmstudio']);
 
 export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProps) {
   const styles = useStyles();
@@ -222,25 +234,33 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
                 </Field>
               )}
 
-              <Field label={t('settings.modelLabel')}>
-                {models.length > 0 ? (
-                  <Select
-                    value={settings.selectedModel}
-                    onChange={(_, data) => onChange({ ...settings, selectedModel: data.value })}
-                  >
-                    <option value="">{t('settings.modelSelectPlaceholder')}</option>
-                    {models.map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </Select>
-                ) : (
-                  <Input
-                    value={settings.selectedModel}
-                    onChange={(_, data) => onChange({ ...settings, selectedModel: data.value })}
-                    placeholder={t('settings.modelPlaceholder')}
-                  />
-                )}
-              </Field>
+              {selectedProvider.id === 'lmstudio' ? (
+                <LmStudioModelPicker
+                  baseUrl={selectedProvider.baseUrl || 'http://localhost:1234/v1'}
+                  selectedModel={settings.selectedModel}
+                  onModelChange={model => onChange({ ...settings, selectedModel: model })}
+                />
+              ) : (
+                <Field label={t('settings.modelLabel')}>
+                  {models.length > 0 ? (
+                    <Select
+                      value={settings.selectedModel}
+                      onChange={(_, data) => onChange({ ...settings, selectedModel: data.value })}
+                    >
+                      <option value="">{t('settings.modelSelectPlaceholder')}</option>
+                      {models.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Input
+                      value={settings.selectedModel}
+                      onChange={(_, data) => onChange({ ...settings, selectedModel: data.value })}
+                      placeholder={t('settings.modelPlaceholder')}
+                    />
+                  )}
+                </Field>
+              )}
             </>
           )}
         </div>
@@ -350,5 +370,105 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
         </div>
       </div>
     </div>
+  );
+}
+
+interface LmStudioModelPickerProps {
+  baseUrl: string;
+  selectedModel: string;
+  onModelChange: (model: string) => void;
+}
+
+function LmStudioModelPicker({ baseUrl, selectedModel, onModelChange }: LmStudioModelPickerProps) {
+  const styles = useStyles();
+  const { t } = useTranslation();
+  const [status, setStatus] = useState<LmStudioStatus>('connecting');
+  const [models, setModels] = useState<LmStudioModel[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const runDiscovery = (force: boolean) => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setStatus('connecting');
+    discoverLmStudioModels(baseUrl, { signal: ctrl.signal, force })
+      .then(result => {
+        if (ctrl.signal.aborted) return;
+        setStatus(result.status);
+        setModels(result.models);
+      })
+      .catch(err => {
+        if (ctrl.signal.aborted) return;
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setStatus('unreachable');
+        setModels([]);
+      });
+  };
+
+  // Debounced auto-discovery on mount and baseUrl change.
+  useEffect(() => {
+    const timer = setTimeout(() => runDiscovery(false), 500);
+    return () => {
+      clearTimeout(timer);
+      abortRef.current?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseUrl]);
+
+  const hasModels = models.length > 0;
+
+  return (
+    <Field
+      label={t('settings.modelLabel')}
+      hint={
+        <div className={styles.statusRow}>
+          {status === 'connecting' && (
+            <>
+              <Spinner size="extra-tiny" />
+              <Text size={200}>{t('settings.lmstudioStatusChecking')}</Text>
+            </>
+          )}
+          {status === 'connected' && (
+            <Badge appearance="outline" size="small" color="success">
+              {t('settings.lmstudioStatusConnected', { count: models.length })}
+            </Badge>
+          )}
+          {status === 'unreachable' && (
+            <Tooltip content={t('settings.lmstudioCorsHint')} relationship="description">
+              <Badge appearance="outline" size="small" color="danger">
+                {t('settings.lmstudioStatusUnreachable')}
+              </Badge>
+            </Tooltip>
+          )}
+          <Button
+            appearance="subtle"
+            size="small"
+            icon={<ArrowClockwise24Regular />}
+            onClick={() => runDiscovery(true)}
+            aria-label={t('settings.lmstudioRefreshAria')}
+          />
+        </div>
+      }
+    >
+      {hasModels ? (
+        <Select
+          value={selectedModel}
+          onChange={(_, data) => onModelChange(data.value)}
+        >
+          <option value="">{t('settings.modelSelectPlaceholder')}</option>
+          {models.map(m => (
+            <option key={m.id} value={m.id}>
+              {m.state === 'loaded' ? `● ${m.id}` : m.id}
+            </option>
+          ))}
+        </Select>
+      ) : (
+        <Input
+          value={selectedModel}
+          onChange={(_, data) => onModelChange(data.value)}
+          placeholder={t('settings.modelPlaceholder')}
+        />
+      )}
+    </Field>
   );
 }

@@ -191,6 +191,19 @@ describe('computeCallCost — tokens-only fallback', () => {
     expect(cost.source).toBe('tokens-only');
   });
 
+  it('falls back to tokens-only for lmstudio (no PRICING entry)', () => {
+    const cost = computeCallCost({
+      providerId: 'lmstudio',
+      modelId: 'qwen2.5-coder-7b-instruct',
+      usage: usage({ input: 100, output: 50 }),
+      providerMetadata: undefined,
+    });
+    expect(cost.source).toBe('tokens-only');
+    expect(cost.totalUsd).toBe(0);
+    expect(cost.tokens.input).toBe(100);
+    expect(cost.tokens.output).toBe(50);
+  });
+
   it('falls back to tokens-only for openrouter without usage accounting', () => {
     const cost = computeCallCost({
       providerId: 'openrouter',

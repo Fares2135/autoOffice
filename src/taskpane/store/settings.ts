@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     { id: 'gateway', name: 'Vercel AI Gateway', apiKey: '' },
     { id: 'openrouter', name: 'OpenRouter', apiKey: '' },
     { id: 'ollama', name: 'Ollama', apiKey: '', baseUrl: '' },
+    { id: 'lmstudio', name: 'LM Studio', apiKey: '', baseUrl: 'http://localhost:1234/v1' },
     { id: 'openai-compatible', name: 'OpenAI-Compatible', apiKey: '', baseUrl: '' },
   ],
   autoApprove: false,

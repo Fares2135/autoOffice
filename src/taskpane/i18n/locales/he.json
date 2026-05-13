@@ -49,7 +49,12 @@
     "mcpNamePlaceholder": "שם שרת",
     "mcpUrlPlaceholder": "https://server-url/mcp",
     "languageSection": "שפה",
-    "languagePlaceholder": "בחרו שפה..."
+    "languagePlaceholder": "בחרו שפה...",
+    "lmstudioStatusChecking": "בודק…",
+    "lmstudioStatusConnected": "מחובר · {{count}} מודלים",
+    "lmstudioStatusUnreachable": "לא פעיל",
+    "lmstudioCorsHint": "פתחו את LM Studio ← Developer ← הפעילו CORS, או הריצו \"lms server start --cors\" במסוף.",
+    "lmstudioRefreshAria": "רענן את רשימת המודלים"
   },
   "code": {
     "approveButton": "אישור והרצה",
@@ -76,6 +81,7 @@
     "sourceOpenRouterExact": "סכום מדויק דרך OpenRouter",
     "sourceEstimated": "הערכה · מחירון v{{version}}",
     "sourceTokensOnly": "אין מחירון זמין לדגם זה",
+    "sourceLocalFree": "מקומי · חינם",
     "unknown": "—"
   },
   "fatal": {

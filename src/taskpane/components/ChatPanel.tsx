@@ -106,6 +106,8 @@ interface ChatPanelProps {
   activeChatHost: HostKind | null;
   /** Running total cost for the active conversation. */
   cost: CallCost | undefined;
+  /** Currently-selected provider id, used to label local-model costs as free. */
+  providerId?: string;
   onSend: (text: string) => void;
   onApprove: (approved: boolean) => void;
   onOpenSettings: () => void;
@@ -114,7 +116,7 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({
-  host, messages, isLoading, pendingApproval, activeChatHost, cost,
+  host, messages, isLoading, pendingApproval, activeChatHost, cost, providerId,
   onSend, onApprove, onOpenSettings, onOpenHistory, onNewChat,
 }: ChatPanelProps) {
   const styles = useStyles();
@@ -174,7 +176,7 @@ export function ChatPanel({
           >
             {host.displayName}
           </Badge>
-          <CostBadge cost={cost} />
+          <CostBadge cost={cost} providerId={providerId} />
         </div>
         <div style={{ display: 'flex', gap: '4px' }}>
           <Tooltip content={t('chat.historyTooltip')} relationship="label">

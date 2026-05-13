@@ -49,7 +49,12 @@
     "mcpNamePlaceholder": "Server name",
     "mcpUrlPlaceholder": "https://server-url/mcp",
     "languageSection": "Language",
-    "languagePlaceholder": "Select a language..."
+    "languagePlaceholder": "Select a language...",
+    "lmstudioStatusChecking": "Checking…",
+    "lmstudioStatusConnected": "Connected · {{count}} models",
+    "lmstudioStatusUnreachable": "Not running",
+    "lmstudioCorsHint": "Open LM Studio → Developer → enable CORS, or run \"lms server start --cors\" in a terminal.",
+    "lmstudioRefreshAria": "Refresh model list"
   },
   "code": {
     "approveButton": "Approve & Run",
@@ -76,6 +81,7 @@
     "sourceOpenRouterExact": "Exact via OpenRouter",
     "sourceEstimated": "Estimated · pricing v{{version}}",
     "sourceTokensOnly": "Pricing not available for this model",
+    "sourceLocalFree": "Local · free",
     "unknown": "—"
   },
   "fatal": {

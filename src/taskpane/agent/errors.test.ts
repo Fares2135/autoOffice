@@ -163,3 +163,51 @@ describe('formatError — MCP', () => {
     expect(out.detail).toContain('ECONNREFUSED');
   });
 });
+
+describe('formatError — LM Studio', () => {
+  function makeApiError(extras: Record<string, unknown>): Error {
+    const e = new Error('API call failed');
+    e.name = 'AI_APICallError';
+    Object.assign(e, extras);
+    return e;
+  }
+
+  it('produces LM Studio-specific title and CORS hint on network error', () => {
+    const err = new TypeError('Failed to fetch');
+    const out = formatError(err, { provider: 'LM Studio', model: 'qwen2.5-7b' });
+    expect(out.kind).toBe('network');
+    expect(out.title).toBe('LM Studio unreachable');
+    expect(out.detail).toMatch(/CORS/);
+    expect(out.detail).toMatch(/local server/);
+  });
+
+  it('falls through to the generic network branch for other providers', () => {
+    const err = new TypeError('Failed to fetch');
+    const out = formatError(err, { provider: 'Anthropic' });
+    expect(out.kind).toBe('network');
+    expect(out.title).toBe('Network error');
+  });
+
+  it('prefixes a not-loaded hint on 404 API errors with LM Studio context', () => {
+    const err = makeApiError({
+      statusCode: 404,
+      responseBody: JSON.stringify({ error: { message: 'No model loaded' } }),
+    });
+    const out = formatError(err, { provider: 'LM Studio', model: 'qwen2.5-7b' });
+    expect(out.kind).toBe('api');
+    expect(out.title).toBe('LM Studio API error (404)');
+    expect(out.detail).toContain('qwen2.5-7b');
+    expect(out.detail).toMatch(/is not loaded in LM Studio/);
+    expect(out.detail).toMatch(/Models tab/);
+  });
+
+  it('does not add the not-loaded prefix on non-404 LM Studio API errors', () => {
+    const err = makeApiError({
+      statusCode: 500,
+      responseBody: 'internal server error',
+    });
+    const out = formatError(err, { provider: 'LM Studio', model: 'qwen2.5-7b' });
+    expect(out.detail).toBe('internal server error');
+    expect(out.detail).not.toMatch(/Models tab/);
+  });
+});

@@ -12,12 +12,14 @@ import type { LanguageModel } from 'ai';
 import type { AppSettings } from '../store/settings.ts';
 import { ConfigError } from './errors.ts';
 
+const NO_API_KEY_REQUIRED = new Set(['ollama', 'lmstudio']);
+
 export function createModel(settings: AppSettings): LanguageModel {
   const provider = settings.providers.find(p => p.id === settings.selectedProviderId);
   if (!provider) {
     throw new ConfigError('No AI provider selected. Please configure a provider in settings.');
   }
-  if (!provider.apiKey && provider.id !== 'ollama') {
+  if (!provider.apiKey && !NO_API_KEY_REQUIRED.has(provider.id)) {
     throw new ConfigError(`No API key configured for ${provider.name}. Please add one in settings.`);
   }
   if (!settings.selectedModel) {
@@ -93,6 +95,15 @@ export function createModel(settings: AppSettings): LanguageModel {
         ...(provider.baseUrl ? { baseURL: provider.baseUrl } : {}),
       });
       return ollama(settings.selectedModel);
+    }
+    case 'lmstudio': {
+      const baseUrl = (provider.baseUrl || 'http://localhost:1234/v1').replace(/\/+$/, '');
+      const compat = createOpenAICompatible({
+        name: 'lmstudio',
+        apiKey: provider.apiKey || 'lm-studio',
+        baseURL: baseUrl,
+      });
+      return compat(settings.selectedModel);
     }
     default:
       throw new ConfigError(`Unknown provider: ${provider.id}`);

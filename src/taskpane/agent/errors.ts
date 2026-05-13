@@ -116,6 +116,14 @@ export function formatError(err: unknown, ctx: ErrorContext = {}): FormattedErro
   }
 
   if (isNetworkError(e)) {
+    if (ctx.provider === 'LM Studio') {
+      return {
+        kind: 'network',
+        title: 'LM Studio unreachable',
+        detail: 'Could not connect to LM Studio. Make sure the local server is running and CORS is enabled (Developer tab → "Enable CORS", or run `lms server start --cors`).',
+        raw: e.stack,
+      };
+    }
     return {
       kind: 'network',
       title: e.name === 'AbortError' ? 'Request cancelled' : 'Network error',
@@ -137,7 +145,10 @@ export function formatError(err: unknown, ctx: ErrorContext = {}): FormattedErro
     const status = typeof e.statusCode === 'number' ? e.statusCode : undefined;
     const providerPart = ctx.provider ? `${ctx.provider} ` : '';
     const statusPart = status !== undefined ? ` (${status})` : '';
-    const detail = extractApiDetail(e.responseBody) ?? e.message;
+    const rawDetail = extractApiDetail(e.responseBody) ?? e.message;
+    const detail = ctx.provider === 'LM Studio' && status === 404
+      ? `Model "${ctx.model ?? 'unknown'}" is not loaded in LM Studio. Load it from the Models tab and try again. (${rawDetail})`
+      : rawDetail;
     return {
       kind: 'api',
       title: `${providerPart}API error${statusPart}`,
