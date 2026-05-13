@@ -11,6 +11,7 @@ import {
 import { type CallCost, PRICING_VERSION } from '../agent/pricing.ts';
 import { formatTokens, formatUsd } from '../lib/cost.ts';
 import { useTranslation } from '../i18n/index.ts';
+import { LOCAL_PROVIDER_IDS } from '../store/settings.ts';
 
 const useStyles = makeStyles({
   badge: { cursor: 'pointer' },
@@ -24,8 +25,6 @@ const useStyles = makeStyles({
 
 interface Row { labelKey: 'cost.input' | 'cost.cachedRead' | 'cost.cacheWrite' | 'cost.output';
                 tokens: number; usd: number }
-
-const LOCAL_PROVIDERS = new Set(['lmstudio', 'ollama']);
 
 export function CostBadge({ cost, providerId }: { cost: CallCost | undefined; providerId?: string }) {
   const styles = useStyles();
@@ -48,7 +47,7 @@ export function CostBadge({ cost, providerId }: { cost: CallCost | undefined; pr
     ] satisfies Row[]
   ).filter(r => r.tokens > 0 || r.usd > 0);
 
-  const isLocal = providerId !== undefined && LOCAL_PROVIDERS.has(providerId);
+  const isLocal = providerId !== undefined && LOCAL_PROVIDER_IDS.has(providerId);
   const sourceLabel =
     cost.source === 'gateway-exact'         ? t('cost.sourceGatewayExact') :
     cost.source === 'openrouter-exact'      ? t('cost.sourceOpenRouterExact') :

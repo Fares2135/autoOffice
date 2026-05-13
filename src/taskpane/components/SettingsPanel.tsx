@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   makeStyles,
   tokens,
@@ -23,6 +23,7 @@ import {
   ArrowClockwise24Regular,
 } from '@fluentui/react-icons';
 import type { AppSettings, McpServerConfig } from '../store/settings.ts';
+import { LOCAL_PROVIDER_IDS } from '../store/settings.ts';
 import { useTranslation, availableLocales, type LocaleId } from '../i18n/index.ts';
 import { discoverLmStudioModels, type LmStudioModel, type LmStudioStatus } from '../agent/lmstudio.ts';
 
@@ -138,7 +139,6 @@ const PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 const PROVIDERS_WITH_BASE_URL = new Set(['openai-compatible', 'openrouter', 'ollama', 'lmstudio']);
-const PROVIDERS_WITHOUT_API_KEY = new Set(['ollama', 'lmstudio']);
 
 export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProps) {
   const styles = useStyles();
@@ -205,7 +205,7 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
 
           {selectedProvider && (
             <>
-              {!PROVIDERS_WITHOUT_API_KEY.has(selectedProvider.id) && (
+              {!LOCAL_PROVIDER_IDS.has(selectedProvider.id) && (
                 <Field label={t('settings.apiKeyLabel')}>
                   <div className={styles.row}>
                     <Input
@@ -386,7 +386,7 @@ function LmStudioModelPicker({ baseUrl, selectedModel, onModelChange }: LmStudio
   const [models, setModels] = useState<LmStudioModel[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
-  const runDiscovery = (force: boolean) => {
+  const runDiscovery = useCallback((force: boolean) => {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -403,7 +403,7 @@ function LmStudioModelPicker({ baseUrl, selectedModel, onModelChange }: LmStudio
         setStatus('unreachable');
         setModels([]);
       });
-  };
+  }, [baseUrl]);
 
   // Debounced auto-discovery on mount and baseUrl change.
   useEffect(() => {
@@ -412,8 +412,7 @@ function LmStudioModelPicker({ baseUrl, selectedModel, onModelChange }: LmStudio
       clearTimeout(timer);
       abortRef.current?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseUrl]);
+  }, [baseUrl, runDiscovery]);
 
   const hasModels = models.length > 0;
 
@@ -456,11 +455,14 @@ function LmStudioModelPicker({ baseUrl, selectedModel, onModelChange }: LmStudio
           onChange={(_, data) => onModelChange(data.value)}
         >
           <option value="">{t('settings.modelSelectPlaceholder')}</option>
-          {models.map(m => (
-            <option key={m.id} value={m.id}>
-              {m.state === 'loaded' ? `● ${m.id}` : m.id}
-            </option>
-          ))}
+          {models.map(m => {
+            const label = m.displayName ?? m.id;
+            return (
+              <option key={m.id} value={m.id}>
+                {m.state === 'loaded' ? `● ${label}` : label}
+              </option>
+            );
+          })}
         </Select>
       ) : (
         <Input

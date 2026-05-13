@@ -149,14 +149,14 @@ async function tryFetch(url: string, externalSignal: AbortSignal | undefined, ti
 function parseNative(body: unknown): LmStudioModel[] {
   // LM Studio 0.4.x uses `{ models: [...] }`; older / alternate builds use `{ data: [...] }`.
   const list = extractList(body, ['models', 'data']);
-  return list.map((raw): LmStudioModel => {
+  return list.flatMap((raw): LmStudioModel[] => {
     const r = raw as Record<string, unknown>;
     // Skip non-LLM entries (embeddings, etc.) — they aren't usable as chat models.
     const modelType = stringField(r.type);
-    if (modelType && modelType !== 'llm' && modelType !== 'vlm') return { id: '' };
+    if (modelType && modelType !== 'llm' && modelType !== 'vlm') return [];
 
     const id = stringField(r.key) ?? stringField(r.id) ?? stringField(r.model_key) ?? '';
-    if (!id) return { id: '' };
+    if (!id) return [];
 
     const loadedInstances = Array.isArray(r.loaded_instances) ? r.loaded_instances : undefined;
     const state: LmStudioModel['state'] =
@@ -165,7 +165,7 @@ function parseNative(body: unknown): LmStudioModel[] {
       r.state === 'not-loaded' || r.loaded === false ? 'not-loaded' :
       undefined;
 
-    return {
+    return [{
       id,
       displayName: stringField(r.display_name) ?? stringField(r.displayName),
       architecture: stringField(r.arch) ?? stringField(r.architecture),
@@ -173,8 +173,8 @@ function parseNative(body: unknown): LmStudioModel[] {
       contextLength: numberField(r.context_length) ?? numberField(r.max_context_length),
       capabilities: parseCapabilities(r.capabilities),
       state,
-    };
-  }).filter(m => m.id);
+    }];
+  });
 }
 
 function parseOpenAi(body: unknown): LmStudioModel[] {

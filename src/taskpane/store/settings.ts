@@ -1,3 +1,5 @@
+export const LOCAL_PROVIDER_IDS = new Set(['ollama', 'lmstudio']);
+
 export interface McpServerConfig {
   name: string;
   url: string;
