@@ -10,3 +10,4 @@ artifacts/
 apps/server/dist/
 apps/server/coverage/
 coverage/
+installer/output/

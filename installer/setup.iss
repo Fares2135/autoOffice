@@ -5,7 +5,7 @@
 #define MyAppName "AutoOffice for Word, Excel & PowerPoint"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "AutoOffice"
-#define MyAppURL "https://sivan22.github.io/autoOffice/"
+#define MyAppURL "https://github.com/Fares2135/autoOffice"
 #define ShareName "AutoOfficeAddin"
 
 [Setup]
@@ -31,7 +31,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
 [Files]
-Source: "..\manifest.production.xml"; DestDir: "{app}"; DestName: "manifest.xml"; Flags: ignoreversion
+; The bundled server serves the task pane itself on https://localhost:47318,
+; so ship the localhost manifest — not manifest.production.xml, whose URLs
+; point at the upstream GitHub Pages build and have no /api on that origin.
+Source: "..\manifest.xml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\apps\server\dist\autoOffice-server.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "launcher.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\apps\web\dist\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -159,7 +162,8 @@ begin
       // Distinct filename so we never overwrite the host catalog's own manifest.
       TargetFile := HostCatalogUrl + '\autooffice.xml'
     else
-      TargetFile := '{#OwnSharePath}\manifest.xml';
+      // OwnSharePath is a Pascal variable, not a preprocessor define — no {# }.
+      TargetFile := OwnSharePath + '\manifest.xml';
     if not CopyFile(ExpandConstant('{app}\manifest.xml'), TargetFile, False) then
       MsgBox('Warning: Could not copy manifest to share folder: ' + TargetFile, mbInformation, MB_OK);
     // Record where we placed the manifest so the uninstaller can remove it.

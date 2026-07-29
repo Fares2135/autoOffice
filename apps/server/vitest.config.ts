@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   plugins: [
@@ -37,7 +38,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@shared': new URL('../../packages/shared/src', import.meta.url).pathname,
+      // fileURLToPath, not .pathname: on Windows .pathname gives "/D:/…", which
+      // vite-node rejects with "File URL path must be an absolute path".
+      '@shared': fileURLToPath(new URL('../../packages/shared/src', import.meta.url)),
     },
   },
 });

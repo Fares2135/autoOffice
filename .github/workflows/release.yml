@@ -3,6 +3,7 @@ name: Build and Release
 on:
   push:
     branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,6 +14,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: latest }
+
+      - run: npm ci
+      # setup.iss bundles apps/web/dist and apps/server/dist — build them first.
+      - run: npm --workspace @autooffice/web run build
+      - run: npm --workspace @autooffice/server run build
 
       - name: Install Inno Setup
         shell: pwsh
@@ -38,12 +48,14 @@ jobs:
             Auto-built from `${{ github.sha }}`.
 
             ## Install
-            1. Download **AutoOffice-Setup.exe** and run it.
+            1. Download **AutoOffice-Setup.exe** and run it (needs admin).
             2. Restart Microsoft Word.
             3. Go to **Insert → Add-ins → My Add-ins → Shared Folder**.
             4. Select **AutoOffice** and click **Add**.
 
-            The add-in is served from GitHub Pages — no local server needed.
+            The installer bundles the AutoOffice server, starts it at logon and
+            installs its own certificate, so the task pane is served from
+            `https://localhost:47318` on your own machine.
           files: installer/output/AutoOffice-Setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

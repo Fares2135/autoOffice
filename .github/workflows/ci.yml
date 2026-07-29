@@ -17,7 +17,9 @@ jobs:
       - run: npm ci
       - run: npm run lint:i18n
       - run: npm --workspace @autooffice/shared run test
-      - run: npm --workspace @autooffice/server run test -- --coverage
+      # No --coverage: the suite needs bun:sqlite, and bun's runtime has no v8
+      # coverage APIs ("Coverage APIs are not supported").
+      - run: npm --workspace @autooffice/server run test
       - run: npm --workspace @autooffice/web run test
       - run: npm --workspace @autooffice/web run build
       - run: npm --workspace @autooffice/server run build
