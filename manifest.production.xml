@@ -6,7 +6,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
 
-  <Id>a6711798-92c5-40a2-85ce-2adf4e53fe65</Id>
+  <Id>25787704-0948-48ff-a2d6-0a7519f4b87a</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>AutoOffice</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
@@ -16,9 +16,9 @@
   <Description DefaultValue="AI-powered dynamic code execution add-in for Microsoft Word, Excel, and PowerPoint">
     <Override Locale="ar-SA" Value="مساعد ذكي لتعديل مستندات Word ومصنفات Excel وعروض PowerPoint" />
   </Description>
-  <IconUrl DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-64.png" />
-  <SupportUrl DefaultValue="https://github.com/Sivan22/autoOffice" />
+  <IconUrl DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-64.png" />
+  <SupportUrl DefaultValue="https://github.com/Fares2135/autoOffice" />
 
   <Hosts>
     <Host Name="Document" />
@@ -27,7 +27,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:47318/" />
+    <SourceLocation DefaultValue="https://fares2135.github.io/autoOffice/" />
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -149,13 +149,13 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-16.png" />
-        <bt:Image id="Icon.32x32" DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-32.png" />
-        <bt:Image id="Icon.80x80" DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-80.png" />
+        <bt:Image id="Icon.16x16" DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-80.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:47318/" />
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/Sivan22/autoOffice" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://fares2135.github.io/autoOffice/" />
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/Fares2135/autoOffice" />
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="AutoOffice is ready">
