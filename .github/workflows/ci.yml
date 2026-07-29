@@ -83,7 +83,17 @@ jobs:
       - name: Build installer
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\setup.iss'
       - name: Run installer silently
-        run: '& installer/output/AutoOffice-Setup.exe /VERYSILENT /NORESTART'
+        shell: pwsh
+        run: |
+          # -Wait: Setup.exe returns immediately otherwise, so a silent Abort
+          # used to pass this step. /SUPPRESSMSGBOXES so an error dialog can't
+          # block forever.
+          $p = Start-Process -FilePath "installer/output/AutoOffice-Setup.exe" `
+            -ArgumentList "/VERYSILENT","/NORESTART","/SUPPRESSMSGBOXES","/LOG=$env:TEMP\ao-install.log" `
+            -Wait -PassThru
+          Write-Host "installer exit code: $($p.ExitCode)"
+          Get-Content "$env:TEMP\ao-install.log" -ErrorAction SilentlyContinue | Select-Object -Last 80
+          if ($p.ExitCode -ne 0) { exit 1 }
       - name: /health after install
         shell: pwsh
         run: |
