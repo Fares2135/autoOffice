@@ -6,15 +6,19 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
 
-  <Id>a6711798-92c5-40a2-85ce-2adf4e53fe65</Id>
+  <Id>25787704-0948-48ff-a2d6-0a7519f4b87a</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>AutoOffice</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="AutoOffice" />
-  <Description DefaultValue="AI-powered dynamic code execution add-in for Microsoft Word, Excel, and PowerPoint" />
-  <IconUrl DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-64.png" />
-  <SupportUrl DefaultValue="https://github.com/Sivan22/autoOffice" />
+  <DisplayName DefaultValue="AutoOffice">
+    <Override Locale="ar-SA" Value="أوتو أوفيس" />
+  </DisplayName>
+  <Description DefaultValue="AI-powered dynamic code execution add-in for Microsoft Word, Excel, and PowerPoint">
+    <Override Locale="ar-SA" Value="مساعد ذكي لتعديل مستندات Word ومصنفات Excel وعروض PowerPoint" />
+  </Description>
+  <IconUrl DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-64.png" />
+  <SupportUrl DefaultValue="https://github.com/Fares2135/autoOffice" />
 
   <Hosts>
     <Host Name="Document" />
@@ -23,7 +27,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://sivan22.github.io/autoOffice/" />
+    <SourceLocation DefaultValue="https://fares2135.github.io/autoOffice/" />
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -145,22 +149,32 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-16.png" />
-        <bt:Image id="Icon.32x32" DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-32.png" />
-        <bt:Image id="Icon.80x80" DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-80.png" />
+        <bt:Image id="Icon.16x16" DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://fares2135.github.io/autoOffice/assets/icon-80.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://sivan22.github.io/autoOffice/" />
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/Sivan22/autoOffice" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://fares2135.github.io/autoOffice/" />
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/Fares2135/autoOffice" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="AutoOffice is ready" />
-        <bt:String id="CommandsGroup.Label" DefaultValue="AutoOffice" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="AutoOffice" />
+        <bt:String id="GetStarted.Title" DefaultValue="AutoOffice is ready">
+          <bt:Override Locale="ar-SA" Value="أوتو أوفيس جاهز" />
+        </bt:String>
+        <bt:String id="CommandsGroup.Label" DefaultValue="AutoOffice">
+          <bt:Override Locale="ar-SA" Value="أوتو أوفيس" />
+        </bt:String>
+        <bt:String id="TaskpaneButton.Label" DefaultValue="AutoOffice">
+          <bt:Override Locale="ar-SA" Value="أوتو أوفيس" />
+        </bt:String>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="AI-powered assistant for Word, Excel, and PowerPoint" />
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the AutoOffice AI assistant" />
+        <bt:String id="GetStarted.Description" DefaultValue="AI-powered assistant for Word, Excel, and PowerPoint">
+          <bt:Override Locale="ar-SA" Value="مساعد ذكي لـ Word وExcel وPowerPoint" />
+        </bt:String>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the AutoOffice AI assistant">
+          <bt:Override Locale="ar-SA" Value="فتح مساعد أوتو أوفيس الذكي" />
+        </bt:String>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
