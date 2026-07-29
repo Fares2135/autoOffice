@@ -71,8 +71,11 @@ function announce(locale: LocaleId): void {
   const node = document.createElement('div');
   node.setAttribute('role', 'status');
   node.setAttribute('aria-live', 'polite');
+  // Clip-rect, not left:-10000px: under dir="rtl" an off-canvas absolute
+  // element widens the page and can be scrolled into view.
   node.style.cssText =
-    'position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;';
+    'position:fixed;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;' +
+    'clip:rect(0,0,0,0);white-space:nowrap;border:0;';
   node.textContent = translationService.t('accessibility.languageChanged', {
     language: LOCALES[locale].nativeName,
   });

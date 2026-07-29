@@ -17,6 +17,13 @@ describe('normalizeLanguageTag', () => {
     expect(normalizeLanguageTag('he-Hebr-IL')).toBe('he');
   });
 
+  it('resolves the Arabic tags Office reports as displayLanguage', () => {
+    expect(normalizeLanguageTag('ar')).toBe('ar');
+    expect(normalizeLanguageTag('ar-SA')).toBe('ar');
+    expect(normalizeLanguageTag('ar-EG')).toBe('ar');
+    expect(normalizeLanguageTag('ar-Arab-MA')).toBe('ar');
+  });
+
   it('maps historical codes', () => {
     expect(normalizeLanguageTag('iw')).toBe('he');
     expect(normalizeLanguageTag('iw-IL')).toBe('he');

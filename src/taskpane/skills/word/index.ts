@@ -18,13 +18,14 @@ import fields            from './fields.md?raw';
 import trackChanges      from './track-changes.md?raw';
 import pageSetup         from './page-setup.md?raw';
 import ooxml             from './ooxml.md?raw';
+import arabicRtl         from './arabic-rtl.md?raw';
 
 export const WORD_SKILL_NAMES = [
   'formatting', 'tables', 'content-controls', 'styles',
   'ranges', 'search', 'comments', 'headers-footers',
   'images', 'lists', 'document', 'context-sync',
   'bookmarks', 'hyperlinks', 'footnotes', 'fields',
-  'track-changes', 'page-setup', 'ooxml',
+  'track-changes', 'page-setup', 'ooxml', 'arabic-rtl',
 ] as const;
 
 export type WordSkillName = (typeof WORD_SKILL_NAMES)[number];
@@ -36,5 +37,5 @@ export const WORD_SKILLS: Record<string, string> = {
   'images': images, 'lists': lists, 'document': documentSkill,
   'bookmarks': bookmarks, 'hyperlinks': hyperlinks, 'footnotes': footnotes,
   'fields': fields, 'track-changes': trackChanges, 'page-setup': pageSetup,
-  'ooxml': ooxml,
+  'ooxml': ooxml, 'arabic-rtl': arabicRtl,
 };
