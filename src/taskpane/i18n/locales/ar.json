@@ -1,0 +1,120 @@
+{
+  "common": {
+    "appName": "AutoOffice",
+    "loading": "جارٍ التحميل...",
+    "error": "خطأ",
+    "success": "تم بنجاح",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "close": "إغلاق"
+  },
+  "chat": {
+    "welcomeTitle": "مرحبًا بك في AutoOffice",
+    "welcomeMessage": "اطلب مني تنفيذ أي تعديل في {{noun}} {{host}}. سأكتب شيفرة office.js وأنفذها لإنجاز المطلوب.",
+    "exampleWord": "جرّب: «اجعل جميع العناوين زرقاء» أو «أدرج جدولًا من ثلاثة أعمدة»",
+    "exampleExcel": "جرّب: «ضع الأرقام من 1 إلى 10 في العمود A» أو «أنشئ مخططًا من B2:D8»",
+    "examplePowerpoint": "جرّب: «أضف شريحة بعنوان خطة الربع الثالث وبها ثلاث نقاط» أو «اجعل جميع عناوين الشرائح عريضة»",
+    "inputPlaceholder": "اطلب مني تعديل {{noun}}...",
+    "sendButton": "إرسال",
+    "settingsTooltip": "الإعدادات",
+    "historyTooltip": "السجل",
+    "newChatTooltip": "محادثة جديدة",
+    "hostWord": "Word",
+    "hostExcel": "Excel",
+    "hostPowerpoint": "PowerPoint",
+    "hostNounWord": "مستند",
+    "hostNounExcel": "مصنف",
+    "hostNounPowerpoint": "عرض تقديمي"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "backButton": "رجوع",
+    "providerSection": "مزوّد الذكاء الاصطناعي",
+    "providerLabel": "المزوّد",
+    "providerPlaceholder": "اختر مزوّدًا...",
+    "apiKeyLabel": "مفتاح API",
+    "apiKeyPlaceholder": "أدخل مفتاح API...",
+    "baseUrlLabel": "عنوان URL الأساسي",
+    "baseUrlPlaceholder": "http://localhost:11434/v1",
+    "modelLabel": "النموذج",
+    "modelSelectPlaceholder": "اختر نموذجًا...",
+    "modelPlaceholder": "أدخل اسم النموذج...",
+    "executionSection": "التنفيذ",
+    "autoApproveLabel": "الموافقة تلقائيًا على تنفيذ الشيفرة",
+    "maxRetriesLabel": "الحد الأقصى لمحاولات الإعادة",
+    "timeoutLabel": "مهلة التنفيذ (بالثواني)",
+    "mcpSection": "خوادم MCP",
+    "mcpAddButton": "إضافة",
+    "mcpNoServers": "لم تُضبط أي خوادم MCP. أضف خادمًا لتوسيع قدرات الوكيل.",
+    "mcpNamePlaceholder": "اسم الخادم",
+    "mcpUrlPlaceholder": "https://server-url/mcp",
+    "languageSection": "اللغة",
+    "languagePlaceholder": "اختر لغة...",
+    "lmstudioStatusChecking": "جارٍ التحقق…",
+    "lmstudioStatusConnected": "متصل · {{count}} نموذجًا",
+    "lmstudioStatusUnreachable": "غير مُشغَّل",
+    "lmstudioCorsHint": "افتح LM Studio → Developer ثم فعّل CORS، أو نفّذ \"lms server start --cors\" في الطرفية.",
+    "lmstudioRefreshAria": "تحديث قائمة النماذج"
+  },
+  "code": {
+    "approveButton": "موافقة وتنفيذ",
+    "rejectButton": "رفض",
+    "statusStreaming": "جارٍ الإنشاء…",
+    "statusPending": "بانتظار الموافقة",
+    "statusRejected": "مرفوض",
+    "statusRunning": "جارٍ التنفيذ...",
+    "statusSuccess": "تم بنجاح",
+    "statusError": "خطأ",
+    "errorDetails": "تفاصيل الخطأ",
+    "result": "النتيجة",
+    "generatingCode": "جارٍ إنشاء الشيفرة…",
+    "toolActivity": "بحث في: {{toolName}}"
+  },
+  "cost": {
+    "title": "تكلفة التشغيل",
+    "input": "الإدخال",
+    "cachedRead": "قراءة من المخزن",
+    "cacheWrite": "كتابة إلى المخزن",
+    "output": "الإخراج",
+    "total": "الإجمالي",
+    "sourceGatewayExact": "دقيق عبر Vercel AI Gateway",
+    "sourceOpenRouterExact": "دقيق عبر OpenRouter",
+    "sourceEstimated": "تقديري · أسعار الإصدار {{version}}",
+    "sourceTokensOnly": "الأسعار غير متاحة لهذا النموذج",
+    "sourceLocalFree": "محلي · بلا تكلفة",
+    "unknown": "—"
+  },
+  "fatal": {
+    "cannotStart": "تعذّر تشغيل AutoOffice"
+  },
+  "history": {
+    "title": "السجل",
+    "closeAria": "إغلاق السجل",
+    "filterCurrent": "التطبيق الحالي",
+    "filterAll": "الكل",
+    "filterWord": "Word",
+    "filterExcel": "Excel",
+    "filterPowerpoint": "PowerPoint",
+    "empty": "لا توجد محادثات بعد — ابدأ محادثة لإنشاء واحدة.",
+    "messageCount_one": "رسالة واحدة",
+    "messageCount_other": "{{n}} رسالة",
+    "renameAria": "إعادة التسمية",
+    "deleteAria": "حذف",
+    "saveNameAria": "حفظ الاسم",
+    "cancelRenameAria": "إلغاء إعادة التسمية",
+    "deleteConfirmTitle": "هل تريد حذف هذه المحادثة؟",
+    "deleteConfirmCancel": "إلغاء",
+    "deleteConfirmConfirm": "حذف",
+    "newChatPlaceholder": "محادثة جديدة"
+  },
+  "errorBubble": {
+    "copyButton": "نسخ",
+    "technicalDetails": "التفاصيل التقنية"
+  },
+  "crossHost": {
+    "message": "بدأت هذه المحادثة في {{chatHost}}، وأنت الآن في {{currentHost}}. ستُنفّذ الرسائل الجديدة باستخدام واجهات {{currentHost}}."
+  },
+  "accessibility": {
+    "languageChanged": "اللغة: {{language}}"
+  }
+}

@@ -235,7 +235,9 @@ Planned work:
 
 ## Adding a Language
 
-AutoOffice's UI and AI agent both run in the user's language.
+AutoOffice's UI and AI agent both run in the user's language. English, Arabic
+and Hebrew ship in the box; Arabic and Hebrew switch the whole task pane to
+RTL automatically.
 
 To add a new language (example: French):
 

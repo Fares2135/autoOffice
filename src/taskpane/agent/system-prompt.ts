@@ -41,6 +41,12 @@ CRITICAL RULES for office.js code:
 ${insertEnumNote}
 - NEVER use DOM manipulation — only the office.js API
 - Code runs in a sandbox with access to the ${apiRoot} object model
+- Preserve Unicode text exactly. For Arabic or Hebrew content, never reverse strings manually and never insert invisible bidi control characters (RLO/LRO/PDF) unless the user explicitly asks for them
+- Keep embedded Latin words, numbers, URLs and office.js identifiers in their natural order${
+    host === 'word'
+      ? '\n- When a request involves Arabic/Hebrew reading order, language tagging, bidirectional fonts, or right-to-left tables/sections, call lookup_skill("arabic-rtl") before writing code'
+      : ''
+  }
 
 When the user asks you to do something with the document:
 1. ALWAYS call lookup_skill before writing code — it provides the correct API patterns, types, and examples for the relevant topic
