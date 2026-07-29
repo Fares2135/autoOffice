@@ -68,7 +68,8 @@
     "errorDetails": "تفاصيل الخطأ",
     "result": "النتيجة",
     "generatingCode": "جارٍ إنشاء الشيفرة…",
-    "toolActivity": "بحث في: {{toolName}}"
+    "toolActivity": "بحث في: {{toolName}}",
+    "inspectActivity": "قرأ بنية المستند"
   },
   "cost": {
     "title": "تكلفة التشغيل",

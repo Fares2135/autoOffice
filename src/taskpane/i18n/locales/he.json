@@ -68,7 +68,8 @@
     "errorDetails": "פרטי שגיאה",
     "result": "תוצאה",
     "generatingCode": "יוצר קוד...",
-    "toolActivity": "חיפש: {{toolName}}"
+    "toolActivity": "חיפש: {{toolName}}",
+    "inspectActivity": "קרא את מבנה המסמך"
   },
   "cost": {
     "title": "עלות הריצה",

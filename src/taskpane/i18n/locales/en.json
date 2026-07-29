@@ -68,7 +68,8 @@
     "errorDetails": "Error details",
     "result": "Result",
     "generatingCode": "Generating code…",
-    "toolActivity": "looked up: {{toolName}}"
+    "toolActivity": "looked up: {{toolName}}",
+    "inspectActivity": "read the document structure"
   },
   "cost": {
     "title": "Run cost",
