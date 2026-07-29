@@ -22,6 +22,7 @@ export type TranslationKey =
   | "code.approveButton"
   | "code.errorDetails"
   | "code.generatingCode"
+  | "code.inspectActivity"
   | "code.rejectButton"
   | "code.result"
   | "code.statusError"

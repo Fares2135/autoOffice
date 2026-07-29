@@ -17,10 +17,15 @@ const useStyles = makeStyles({
 export function ToolActivity({ toolName }: { toolName: string }) {
   const styles = useStyles();
   const { t } = useTranslation();
+  // Inspection is not a lookup, so it gets its own phrasing rather than
+  // reading as "looked up: inspect_document".
+  const label = toolName === 'inspect_document'
+    ? t('code.inspectActivity')
+    : t('code.toolActivity', { toolName });
   return (
     <div className={styles.container}>
       <Checkmark12Regular />
-      <Text size={200} italic>{t('code.toolActivity', { toolName })}</Text>
+      <Text size={200} italic>{label}</Text>
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import { streamText, tool, jsonSchema, stepCountIs, type ModelMessage } from 'ai';
 import { createModel } from './providers.ts';
-import { makeLookupSkillTool } from './tools.ts';
+import { makeLookupSkillTool, makeInspectDocumentTool } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
-import { listSkills } from '../skills/index.ts';
+import { probeCapabilities } from './capabilities.ts';
+import { getBodyText, getSelectionContext } from '../executor/inspect.ts';
+import { diffParagraphs, formatDiff } from '../executor/diff.ts';
 import { translationService } from '../i18n/index.ts';
 import type { HostKind } from '../host/context.ts';
 import type { AppSettings } from '../store/settings.ts';
@@ -68,9 +70,16 @@ export async function runAgent(
     });
   }
 
+  // "Make this bold" only means something with the selection attached.
+  const selection = await getSelectionContext(host);
   const messages: ModelMessage[] = [
     ...conversationHistory,
-    { role: 'user', content: userMessage },
+    {
+      role: 'user',
+      content: selection
+        ? `${userMessage}\n\n[Current selection — ${selection}]`
+        : userMessage,
+    },
   ];
 
   let retryCount = 0;
@@ -104,10 +113,19 @@ export async function runAgent(
 
         callbacks.onUpsertCodeBlock(toolCallId, { code, status: 'running' });
 
+        // Snapshot before the edit so both the user and the model get told
+        // what actually changed, instead of the `undefined` most generated
+        // code returns.
+        const textBefore = await getBodyText(host);
         const result = await sandbox.execute(code, settings.executionTimeout);
         const logsStr = result.logs && result.logs.length ? `\nLogs:\n${result.logs.join('\n')}` : '';
 
         if (result.success) {
+          const textAfter = textBefore === null ? null : await getBodyText(host);
+          const diffText = textBefore !== null && textAfter !== null
+            ? formatDiff(diffParagraphs(textBefore, textAfter))
+            : '';
+
           const outputText = result.output === undefined
             ? 'undefined'
             : typeof result.output === 'string'
@@ -115,10 +133,15 @@ export async function runAgent(
               : JSON.stringify(result.output, null, 2);
           const uiResult = [
             `Output:\n${outputText}`,
+            diffText,
             result.logs && result.logs.length ? `Logs:\n${result.logs.join('\n')}` : '',
           ].filter(Boolean).join('\n\n');
           callbacks.onUpsertCodeBlock(toolCallId, { code, status: 'success', result: uiResult });
-          return `Code executed successfully. Output: ${JSON.stringify(result.output)}${logsStr}`;
+          return [
+            `Code executed successfully. Output: ${JSON.stringify(result.output)}`,
+            diffText,
+            logsStr,
+          ].filter(Boolean).join('\n');
         }
 
         const debugSection = result.debugInfo
@@ -155,12 +178,13 @@ export async function runAgent(
 
   let capturedStreamError: unknown;
 
-  const systemPrompt = buildSystemPrompt(host, listSkills(host), translationService.getLocale());
+  const systemPrompt = buildSystemPrompt(host, translationService.getLocale(), probeCapabilities(host));
   const result = streamText({
     model,
     system: systemPrompt,
     messages,
     tools: {
+      inspect_document: makeInspectDocumentTool(host),
       lookup_skill: makeLookupSkillTool(host),
       execute_code: executeCode,
       ...mcpTools,
@@ -172,10 +196,18 @@ export async function runAgent(
     onStepFinish: ({ toolCalls }) => {
       for (const tc of toolCalls) {
         if (tc.toolName === 'lookup_skill') {
+          const names = (tc.input as { names?: string[] }).names ?? [];
           callbacks.onMessage({
             role: 'assistant',
             content: '',
-            toolActivity: { toolName: (tc.input as { name: string }).name },
+            toolActivity: { toolName: names.join(', ') },
+          });
+        }
+        if (tc.toolName === 'inspect_document') {
+          callbacks.onMessage({
+            role: 'assistant',
+            content: '',
+            toolActivity: { toolName: 'inspect_document' },
           });
         }
       }
