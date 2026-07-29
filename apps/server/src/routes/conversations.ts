@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import * as z from 'zod';
-import { HostSchema } from '@autooffice/shared';
+import { HostSchema, UsageCostSchema, sumUsageCosts } from '@autooffice/shared';
 import type { ConversationsRepo } from '../db/conversations';
 import type { MessagesRepo } from '../db/messages';
 
@@ -20,7 +20,19 @@ const PatchBody = z.object({ title: z.string().min(1).max(200) });
 export function conversationsRouter(convs: ConversationsRepo, msgs: MessagesRepo) {
   const r = new Hono();
 
-  r.get('/', (c) => c.json(convs.list()));
+  r.get('/', (c) =>
+    c.json(
+      convs.list().map((conversation) => {
+        const costs = msgs
+          .listByConversation(conversation.id)
+          .flatMap((message) => {
+            const parsed = UsageCostSchema.safeParse(message.metadata?.usageCost);
+            return parsed.success ? [parsed.data] : [];
+          });
+        return { ...conversation, usageCost: sumUsageCosts(costs) };
+      }),
+    ),
+  );
 
   r.post('/', async (c) => {
     let body: unknown;

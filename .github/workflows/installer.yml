@@ -2,7 +2,7 @@ name: installer
 
 on:
   push:
-    branches: [feat/local-fullstack]
+    branches: [feat/local-fullstack, 'codex/**']
   workflow_dispatch:
 
 jobs:

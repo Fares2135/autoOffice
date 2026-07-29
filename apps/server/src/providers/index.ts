@@ -1,5 +1,10 @@
 import { generateText, type LanguageModel } from 'ai';
-import { isCliBridge, getKnownModels, type ProviderKind } from '@autooffice/shared';
+import {
+  isCliBridge,
+  providerNeedsApiKey,
+  getKnownModels,
+  type ProviderKind,
+} from '@autooffice/shared';
 import type { ProvidersRepo } from '../db/providers';
 import { makeAnthropic } from './factories/anthropic';
 import { makeOpenAI } from './factories/openai';
@@ -26,10 +31,10 @@ export class ProviderRegistry {
 
     if (!isCliBridge(cfg.kind)) {
       const apiKey = this.repo.getDecryptedKey(providerId);
-      if (apiKey == null) {
+      if (providerNeedsApiKey(cfg.kind) && apiKey == null) {
         throw new Error(`Provider '${cfg.label}' requires an API key`);
       }
-      return this.buildDirect(cfg.kind, modelId, apiKey, cfg.config as Record<string, unknown>);
+      return this.buildDirect(cfg.kind, modelId, apiKey ?? '', cfg.config as Record<string, unknown>);
     }
     return this.buildCli(cfg.kind, modelId, cfg.config as Record<string, unknown>);
   }
@@ -49,7 +54,9 @@ export class ProviderRegistry {
     const cfg = this.repo.get(providerId);
     if (!cfg) return 'unknown';
     if (isCliBridge(cfg.kind)) return probeForKind(cfg.kind);
-    return this.repo.getDecryptedKey(providerId) ? 'ready' : 'needs-key' as ProbeStatus;
+    return !providerNeedsApiKey(cfg.kind) || this.repo.getDecryptedKey(providerId)
+      ? 'ready'
+      : 'needs-key' as ProbeStatus;
   }
 
   // Actively verify a provider can authenticate. For CLI bridges this probes the
@@ -67,7 +74,7 @@ export class ProviderRegistry {
       return { status: await probeForKind(cfg.kind) };
     }
     const apiKey = this.repo.getDecryptedKey(providerId);
-    if (!apiKey) return { status: 'needs-key' };
+    if (providerNeedsApiKey(cfg.kind) && !apiKey) return { status: 'needs-key' };
     const modelId = modelIdOverride?.trim() || getKnownModels(cfg.kind)[0];
     if (!modelId) {
       return { status: 'no-model', message: 'no model id supplied for this provider kind' };
@@ -76,7 +83,7 @@ export class ProviderRegistry {
       const model = this.buildDirect(
         cfg.kind,
         modelId,
-        apiKey,
+        apiKey ?? '',
         cfg.config as Record<string, unknown>,
       );
       await generateText({ model, prompt: 'ping', maxOutputTokens: 1 });
@@ -111,6 +118,10 @@ export class ProviderRegistry {
       })(modelId);
       case 'vercel-gateway': return makeVercelGateway({ apiKey })(modelId);
       case 'ollama': return makeOllama({ baseURL: config.baseURL as string | undefined })(modelId);
+      case 'lmstudio': return makeOpenAICompatible({
+        name: 'lmstudio',
+        baseURL: (config.baseURL as string | undefined) ?? 'http://127.0.0.1:1234/v1',
+      })(modelId);
       default:
         throw new Error(`Unhandled direct provider kind: ${kind}`);
     }

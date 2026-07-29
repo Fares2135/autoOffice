@@ -38,7 +38,10 @@ export function makeTestProvider(): (providerId: string, modelId: string) => Lan
                 type: 'tool-call',
                 toolCallId: 'tc0',
                 toolName: 'execute_code',
-                input: JSON.stringify({ code: 'await context.sync()' }),
+                input: JSON.stringify({
+                  summary: 'Synchronize the document',
+                  code: 'await context.sync()',
+                }),
               });
             }
             controller.enqueue({

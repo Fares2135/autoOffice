@@ -1,5 +1,7 @@
 node_modules
 dist
+.DS_Store
+.agent/
 installer/files
 installer/AutoOffice-Setup.exe
 .worktrees/

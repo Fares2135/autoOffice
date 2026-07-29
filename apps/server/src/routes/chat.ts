@@ -12,10 +12,12 @@ import type { ConversationsRepo } from '../db/conversations';
 import type { MessagesRepo } from '../db/messages';
 import type { ProviderRegistry } from '../providers';
 import type { McpHub } from '../mcp/hub';
+import type { SettingsRepo } from '../db/settings';
 import { sweepOrphans } from '../chat/orphan-sweep';
 import { systemPromptForHost } from '../chat/system-prompt';
 import { generateTitle } from '../chat/title';
 import { assembleTools } from '../tools';
+import { computeUsageCost } from '../chat/cost';
 
 const Body = z.object({
   id: z.string(),
@@ -32,6 +34,7 @@ export type ChatDeps = {
   messages: MessagesRepo;
   registry: ProviderRegistry;
   hub: McpHub;
+  settings: SettingsRepo;
   modelOverride?: (providerId: string, modelId: string) => LanguageModel;
 };
 
@@ -117,7 +120,7 @@ export function chatRouter(deps: ChatDeps) {
       system: systemPromptForHost(host as Host, { isCliBridge: cliMode }),
       messages: await convertToModelMessages(swept as any),
       tools,
-      stopWhen: stepCountIs(20),
+      stopWhen: stepCountIs(deps.settings.get().maxSteps),
     });
 
     result.consumeStream();
@@ -125,9 +128,14 @@ export function chatRouter(deps: ChatDeps) {
     return result.toUIMessageStreamResponse({
       originalMessages: swept as any,
       generateMessageId: createIdGenerator({ prefix: 'msg', size: 16 }),
-      messageMetadata: ({ part }: { part: { type: string } }) => {
+      messageMetadata: ({ part }: { part: any }) => {
         if (part.type === 'start') {
           return { createdAt: Date.now(), providerId, modelId };
+        }
+        if (part.type === 'finish' && part.totalUsage) {
+          return {
+            usageCost: computeUsageCost(providerKind, modelId, part.totalUsage),
+          };
         }
       },
       onFinish: ({ messages: finalMessages }) => {

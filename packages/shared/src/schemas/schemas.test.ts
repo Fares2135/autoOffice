@@ -19,6 +19,10 @@ describe('SettingsSchema', () => {
   it('rejects an unknown locale id', () => {
     expect(() => SettingsSchema.parse({ locale: 'zz' })).toThrow();
   });
+
+  it('accepts Arabic as a supported locale', () => {
+    expect(SettingsSchema.parse({ locale: 'ar' }).locale).toBe('ar');
+  });
 });
 
 describe('ConversationSchema', () => {

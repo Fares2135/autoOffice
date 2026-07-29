@@ -14,6 +14,11 @@ describe('loader', () => {
     expect((dict as any).common.cancel).toBe('ביטול');
   });
 
+  it('loads ar.json and returns Arabic strings', async () => {
+    const dict = await loadLocale('ar');
+    expect((dict as any).common.cancel).toBe('إلغاء');
+  });
+
   it('returns the same object reference on repeated calls (cache)', async () => {
     const a = await loadLocale('en');
     const b = await loadLocale('en');

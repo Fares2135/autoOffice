@@ -17,7 +17,12 @@ import {
 import type { HostContext } from '../host/context.ts';
 import { useTranslation } from '../i18n/index.ts';
 import { MessageBubble, type UIMessageLike } from './MessageBubble.tsx';
-import type { ProviderConfig } from '@autooffice/shared';
+import {
+  UsageCostSchema,
+  sumUsageCosts,
+  type ProviderConfig,
+} from '@autooffice/shared';
+import { CostBadge } from './CostBadge.tsx';
 
 const useStyles = makeStyles({
   container: {
@@ -59,13 +64,98 @@ const useStyles = makeStyles({
   empty: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'center',
     flex: 1,
     gap: '8px',
     color: tokens.colorNeutralForeground3,
     padding: '24px',
     textAlign: 'center',
+  },
+  welcomeCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    padding: '20px',
+    borderRadius: '16px',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundImage: `radial-gradient(circle at top right, ${tokens.colorBrandBackground2} 0, transparent 48%)`,
+    backgroundColor: tokens.colorNeutralBackground2,
+    boxShadow: tokens.shadow4,
+  },
+  eyebrow: {
+    display: 'block',
+    color: tokens.colorBrandForeground1,
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.12em',
+    marginBottom: '8px',
+    textTransform: 'uppercase',
+  },
+  stepRail: {
+    display: 'grid',
+    gap: '8px',
+    marginTop: '18px',
+    textAlign: 'start',
+  },
+  step: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    color: tokens.colorNeutralForeground2,
+  },
+  stepNumber: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    color: tokens.colorBrandForeground1,
+    backgroundColor: tokens.colorBrandBackground2,
+    fontSize: '12px',
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+  promptHeading: {
+    marginTop: '20px',
+    marginBottom: '4px',
+    textAlign: 'start',
+    color: tokens.colorNeutralForeground2,
+  },
+  promptGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: '8px',
+  },
+  promptCard: {
+    width: '100%',
+    minHeight: '84px',
+    padding: '12px',
+    textAlign: 'start',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    borderRadius: '12px',
+    whiteSpace: 'normal',
+    transitionProperty: 'transform, box-shadow, border-color',
+    transitionDuration: '160ms',
+    ':hover': {
+      transform: 'translateY(-2px)',
+      boxShadow: tokens.shadow8,
+      borderTopColor: tokens.colorBrandStroke1,
+      borderRightColor: tokens.colorBrandStroke1,
+      borderBottomColor: tokens.colorBrandStroke1,
+      borderLeftColor: tokens.colorBrandStroke1,
+    },
+    ':focus-visible': {
+      outline: `2px solid ${tokens.colorStrokeFocus2}`,
+      outlineOffset: '2px',
+    },
+  },
+  promptCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'flex-start',
   },
   inputArea: {
     display: 'flex',
@@ -180,6 +270,26 @@ export function ChatPanel({
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prompts = host.kind === 'word'
+    ? [
+        [t('chat.promptWordFormat'), t('chat.promptWordFormatBody')],
+        [t('chat.promptWordSummarize'), t('chat.promptWordSummarizeBody')],
+      ]
+    : host.kind === 'excel'
+      ? [
+          [t('chat.promptExcelClean'), t('chat.promptExcelCleanBody')],
+          [t('chat.promptExcelAnalyze'), t('chat.promptExcelAnalyzeBody')],
+        ]
+      : [
+          [t('chat.promptPowerpointPolish'), t('chat.promptPowerpointPolishBody')],
+        [t('chat.promptPowerpointOutline'), t('chat.promptPowerpointOutlineBody')],
+      ];
+  const usageCost = sumUsageCosts(
+    messages.flatMap((message) => {
+      const parsed = UsageCostSchema.safeParse(message.metadata?.usageCost);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -206,7 +316,7 @@ export function ChatPanel({
   };
 
   return (
-    <div className={styles.container} dir="ltr">
+    <div className={styles.container}>
       <div className={styles.header}>
         <div className={styles.brand}>
           <img
@@ -222,6 +332,7 @@ export function ChatPanel({
           >
             {host.displayName}
           </Badge>
+          <CostBadge cost={usageCost} />
         </div>
         <div style={{ display: 'flex', gap: '4px' }}>
           {onOpenHistory && (
@@ -252,31 +363,18 @@ export function ChatPanel({
         </div>
       </div>
 
-      {noProvider && (
-        <div className={styles.banner} role="status">
-          <Text className={styles.bannerText} size={200}>
-            No AI provider is configured. Add one in Settings to start chatting.
-          </Text>
-          {onOpenSettings && (
-            <Button appearance="primary" size="small" onClick={onOpenSettings}>
-              Open Settings
-            </Button>
-          )}
-        </div>
-      )}
-
       {chatError && !noProvider && (
         <div
           className={`${styles.banner} ${styles.bannerError}`}
           role="alert"
-          aria-label="Chat error"
+          aria-label={t('chat.chatErrorAria')}
         >
           <Text className={styles.bannerText} size={200}>
             {chatError}
           </Text>
           {onOpenSettings && isProviderError(chatError) && (
             <Button appearance="subtle" size="small" onClick={onOpenSettings}>
-              Settings
+              {t('chat.settingsTooltip')}
             </Button>
           )}
         </div>
@@ -285,19 +383,71 @@ export function ChatPanel({
       <div className={styles.messageList}>
         {messages.length === 0 ? (
           <div className={styles.empty}>
-            <Text size={400} weight="semibold">
-              {t('chat.welcomeTitle')}
-            </Text>
-            <Text size={200}>
-              {t('chat.welcomeMessage', { host: hostDisplay, noun: hostNoun })}
-            </Text>
-            <Text size={200}>
-              {host.kind === 'word'
-                ? t('chat.exampleWord')
-                : host.kind === 'excel'
-                  ? t('chat.exampleExcel')
-                  : t('chat.examplePowerpoint')}
-            </Text>
+            {noProvider ? (
+              <section className={styles.welcomeCard} aria-labelledby="onboarding-title">
+                <Text className={styles.eyebrow}>{t('chat.onboardingEyebrow')}</Text>
+                <Text id="onboarding-title" as="h1" size={500} weight="semibold" block>
+                  {t('chat.onboardingTitle')}
+                </Text>
+                <Text size={200} block>
+                  {t('chat.onboardingBody')}
+                </Text>
+                <div className={styles.stepRail}>
+                  {[
+                    t('chat.onboardingStepProvider'),
+                    t('chat.onboardingStepKey'),
+                    t('chat.onboardingStepModel'),
+                  ].map((label, index) => (
+                    <div className={styles.step} key={label}>
+                      <span className={styles.stepNumber}>{index + 1}</span>
+                      <Text size={200}>{label}</Text>
+                    </div>
+                  ))}
+                </div>
+                {onOpenSettings && (
+                  <Button
+                    appearance="primary"
+                    onClick={onOpenSettings}
+                    style={{ marginTop: '18px' }}
+                  >
+                    {t('chat.openSettings')}
+                  </Button>
+                )}
+              </section>
+            ) : (
+              <>
+                <section className={styles.welcomeCard}>
+                  <Text className={styles.eyebrow}>{hostDisplay}</Text>
+                  <Text as="h1" size={500} weight="semibold" block>
+                    {t('chat.welcomeTitle')}
+                  </Text>
+                  <Text size={200} block>
+                    {t('chat.welcomeMessage', { host: hostDisplay, noun: hostNoun })}
+                  </Text>
+                </section>
+                <Text className={styles.promptHeading} size={200} weight="semibold">
+                  {t('chat.promptHeading')}
+                </Text>
+                <div className={styles.promptGrid}>
+                  {prompts.map(([title, body]) => (
+                    <Button
+                      key={title}
+                      appearance="outline"
+                      className={styles.promptCard}
+                      onClick={() => {
+                        setInputText(title);
+                        requestAnimationFrame(() => textareaRef.current?.focus());
+                      }}
+                    >
+                      <span className={styles.promptCopy}>
+                        <Text weight="semibold" dir="auto">{title}</Text>
+                        <Text size={200} dir="auto">{body}</Text>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           (() => {
@@ -343,6 +493,7 @@ export function ChatPanel({
         <Textarea
           className={styles.input}
           textarea={{ ref: textareaRef, className: styles.textarea }}
+          dir="auto"
           placeholder={t('chat.inputPlaceholder', { noun: hostNoun })}
           value={inputText}
           onChange={(_, data) => setInputText(data.value)}

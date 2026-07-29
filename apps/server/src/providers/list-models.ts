@@ -16,9 +16,9 @@ function readString(config: Record<string, unknown>, key: string): string | unde
   return typeof v === 'string' && v.length > 0 ? v : undefined;
 }
 
-async function fetchOpenAIStyle(baseURL: string, apiKey: string): Promise<string[]> {
+async function fetchOpenAIStyle(baseURL: string, apiKey?: string): Promise<string[]> {
   const res = await fetch(`${baseURL.replace(/\/+$/, '')}/models`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
   const json = (await res.json()) as { data?: Array<{ id?: string }> };
@@ -26,6 +26,26 @@ async function fetchOpenAIStyle(baseURL: string, apiKey: string): Promise<string
     .map((m) => m.id)
     .filter((id): id is string => typeof id === 'string')
     .sort();
+}
+
+async function fetchLmStudio(baseURL: string): Promise<string[]> {
+  const compatBase = baseURL.replace(/\/+$/, '');
+  const root = compatBase.replace(/\/v1$/, '');
+  const native = await fetch(`${root}/api/v1/models`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (native.ok) {
+    const json = (await native.json()) as {
+      models?: Array<{ key?: string; id?: string; type?: string }>;
+      data?: Array<{ key?: string; id?: string; type?: string }>;
+    };
+    return (json.models ?? json.data ?? [])
+      .filter((model) => !model.type || model.type === 'llm' || model.type === 'vlm')
+      .map((model) => model.key ?? model.id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      .sort();
+  }
+  return fetchOpenAIStyle(compatBase);
 }
 
 async function fetchAnthropic(baseURL: string, apiKey: string): Promise<string[]> {
@@ -104,6 +124,10 @@ export async function listModelsForProvider(
       case 'ollama': {
         const baseURL = readString(config, 'baseURL') ?? 'http://localhost:11434';
         return { models: await fetchOllama(baseURL), source: 'live' };
+      }
+      case 'lmstudio': {
+        const baseURL = readString(config, 'baseURL') ?? 'http://127.0.0.1:1234/v1';
+        return { models: await fetchLmStudio(baseURL), source: 'live' };
       }
       case 'openai':
       case 'groq':

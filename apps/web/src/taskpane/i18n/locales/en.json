@@ -1,4 +1,11 @@
 {
+  "cost": {
+    "tokensShort": "tok",
+    "localFree": "local model — no API charge",
+    "tokensOnly": "price unavailable",
+    "estimated": "estimated from the May 2026 price snapshot",
+    "details": "{{input}} input · {{output}} output · {{source}}"
+  },
   "common": {
     "appName": "AutoOffice",
     "loading": "Loading...",
@@ -20,6 +27,28 @@
     "settingsTooltip": "Settings",
     "historyTooltip": "History",
     "newChatTooltip": "New chat",
+    "noProvider": "No AI provider is configured. Add one in Settings to start chatting.",
+    "openSettings": "Open Settings",
+    "chatErrorAria": "Chat error",
+    "onboardingEyebrow": "FIRST-TIME SETUP",
+    "onboardingTitle": "Connect your AI workspace",
+    "onboardingBody": "Choose a provider, add its credentials, and select a model. Your key stays in the local AutoOffice server.",
+    "onboardingStepProvider": "Choose a provider",
+    "onboardingStepKey": "Save credentials",
+    "onboardingStepModel": "Select a model",
+    "promptHeading": "Start with a document task",
+    "promptWordFormat": "Polish this document",
+    "promptWordFormatBody": "Improve headings, spacing, and visual hierarchy.",
+    "promptWordSummarize": "Summarize the document",
+    "promptWordSummarizeBody": "Create a concise executive summary at the top.",
+    "promptExcelClean": "Clean this workbook",
+    "promptExcelCleanBody": "Find inconsistent formatting and tidy the active sheet.",
+    "promptExcelAnalyze": "Analyze the data",
+    "promptExcelAnalyzeBody": "Highlight patterns and build a useful chart.",
+    "promptPowerpointPolish": "Polish this deck",
+    "promptPowerpointPolishBody": "Improve hierarchy, consistency, and readability.",
+    "promptPowerpointOutline": "Build an outline",
+    "promptPowerpointOutlineBody": "Turn the presentation into a clear narrative.",
     "hostWord": "Word",
     "hostExcel": "Excel",
     "hostPowerpoint": "PowerPoint",
@@ -38,6 +67,10 @@
     "providerPlaceholder": "Select a provider...",
     "apiKeyLabel": "API key",
     "apiKeyPlaceholder": "sk-...",
+    "baseUrlLabel": "Server URL",
+    "lmStudioHint": "Start the LM Studio local server, then choose a loaded model.",
+    "ollamaHint": "Address of your local Ollama server.",
+    "openAiCompatibleHint": "OpenAI-compatible API base URL, usually ending in /v1.",
     "geminiApiKeyLabel": "Gemini API key",
     "geminiApiKeyPlaceholder": "AI...",
     "changeKey": "Change key",
@@ -92,17 +125,27 @@
     "mcpRestartAria": "Restart {{label}}",
     "mcpRemoveAria": "Remove {{label}}",
     "mcpPolicyAria": "Policy for {{tool}}",
+    "mcpPolicyAllow": "Allow",
+    "mcpPolicyAsk": "Ask",
+    "mcpPolicyDeny": "Deny",
+    "mcpAllTools": "all tools",
     "mcpEnabled": "Enabled",
     "mcpDisabled": "Disabled",
     "mcpDefault": "Default: {{policy}}",
     "mcpTimeoutLabel": "Timeout",
     "mcpTools": "Tools",
     "mcpShowLog": "Show stderr log",
+    "mcpHideLog": "Hide stderr log",
     "mcpLogAria": "stderr log for {{label}}",
     "mcpLogEmpty": "(empty)",
     "languageSection": "Language",
     "languageLabel": "Language",
-    "languagePlaceholder": "Select a language..."
+    "languagePlaceholder": "Select a language...",
+    "appearanceSection": "Appearance",
+    "themeLabel": "Theme",
+    "themeSystem": "Use system setting",
+    "themeLight": "Light",
+    "themeDark": "Dark"
   },
   "code": {
     "approveButton": "Approve & Run",
@@ -117,6 +160,7 @@
     "result": "Result",
     "generatingCode": "Generating code…",
     "toolActivity": "looked up: {{toolName}}"
+    ,"changeSummary": "Planned change"
   },
   "fatal": {
     "cannotStart": "AutoOffice cannot start"
@@ -130,7 +174,16 @@
     "filterExcel": "Excel",
     "filterPowerpoint": "PowerPoint",
     "empty": "No conversations yet — start chatting to create one.",
+    "dialogAria": "Conversation history",
+    "showAllHosts": "Show all hosts",
+    "conversationAria": "Conversation: {{title}}",
+    "untitled": "(untitled)",
+    "updated": "Updated {{time}}",
     "messageCount_one": "{{n}} msg",
+    "messageCount_zero": "{{n}} msgs",
+    "messageCount_two": "{{n}} msgs",
+    "messageCount_few": "{{n}} msgs",
+    "messageCount_many": "{{n}} msgs",
     "messageCount_other": "{{n}} msgs",
     "renameAria": "Rename",
     "deleteAria": "Delete",
@@ -139,7 +192,8 @@
     "deleteConfirmTitle": "Delete this conversation?",
     "deleteConfirmCancel": "Cancel",
     "deleteConfirmConfirm": "Delete",
-    "newChatPlaceholder": "New chat"
+    "newChatPlaceholder": "New chat",
+    "relativeNow": "just now"
   },
   "errorBubble": {
     "copyButton": "Copy",
@@ -149,6 +203,7 @@
     "message": "This conversation was started in {{chatHost}}. You're in {{currentHost}}. New messages will run against {{currentHost}}'s APIs."
   },
   "accessibility": {
-    "languageChanged": "Language: {{language}}"
+    "languageChanged": "Language: {{language}}",
+    "streamingResponse": "Streaming response"
   }
 }

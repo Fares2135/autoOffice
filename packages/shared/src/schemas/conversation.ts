@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { UsageCostSchema } from './usage';
 
 export const HostSchema = z.enum(['word', 'excel', 'powerpoint']);
 export type Host = z.infer<typeof HostSchema>;
@@ -11,6 +12,7 @@ export const ConversationSchema = z.object({
   modelId: z.string().nullable(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
+  usageCost: UsageCostSchema.nullable().optional(),
 });
 export type Conversation = z.infer<typeof ConversationSchema>;
 

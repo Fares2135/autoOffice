@@ -3,6 +3,7 @@
 // Exits non-zero on missing keys; warns on extras and likely-untranslated.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 type Json = { [k: string]: string | Json };
 
@@ -41,15 +42,17 @@ const PROPER_NOUN_KEYS = new Set([
 ]);
 
 async function main(): Promise<number> {
-  const reg = await import('../src/taskpane/i18n/registry.ts');
+  const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+  const webI18n = resolve(repoRoot, 'apps/web/src/taskpane/i18n');
+  const reg = await import(pathToFileURL(resolve(webI18n, 'registry.ts')).href);
   const en = JSON.parse(
-    readFileSync(resolve('src/taskpane/i18n/locales/en.json'), 'utf8'),
+    readFileSync(resolve(webI18n, 'locales/en.json'), 'utf8'),
   ) as Json;
 
   let failed = false;
   for (const id of Object.keys(reg.LOCALES)) {
     if (id === 'en') continue;
-    const path = resolve(`src/taskpane/i18n/locales/${id}.json`);
+    const path = resolve(webI18n, `locales/${id}.json`);
     let other: Json;
     try {
       other = JSON.parse(readFileSync(path, 'utf8')) as Json;
@@ -87,6 +90,6 @@ async function main(): Promise<number> {
   return failed ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().then(code => process.exit(code));
 }

@@ -1,4 +1,11 @@
 {
+  "cost": {
+    "tokensShort": "טוק׳",
+    "localFree": "מודל מקומי — ללא עלות API",
+    "tokensOnly": "המחיר אינו זמין",
+    "estimated": "הערכה לפי תמונת המחירים ממאי 2026",
+    "details": "{{input}} קלט · {{output}} פלט · {{source}}"
+  },
   "common": {
     "appName": "AutoOffice",
     "loading": "טוען...",
@@ -20,6 +27,28 @@
     "settingsTooltip": "הגדרות",
     "historyTooltip": "היסטוריה",
     "newChatTooltip": "צ'אט חדש",
+    "noProvider": "לא הוגדר ספק בינה מלאכותית. הוסיפו ספק בהגדרות כדי להתחיל לשוחח.",
+    "openSettings": "פתיחת הגדרות",
+    "chatErrorAria": "שגיאת צ'אט",
+    "onboardingEyebrow": "הגדרה ראשונית",
+    "onboardingTitle": "חיבור סביבת הבינה המלאכותית",
+    "onboardingBody": "בחרו ספק, הוסיפו פרטי גישה ובחרו מודל. המפתח נשאר בשרת AutoOffice המקומי.",
+    "onboardingStepProvider": "בחירת ספק",
+    "onboardingStepKey": "שמירת פרטי גישה",
+    "onboardingStepModel": "בחירת מודל",
+    "promptHeading": "התחילו ממשימה במסמך",
+    "promptWordFormat": "שיפור עיצוב המסמך",
+    "promptWordFormatBody": "שיפור כותרות, ריווח והיררכיה חזותית.",
+    "promptWordSummarize": "סיכום המסמך",
+    "promptWordSummarizeBody": "יצירת תקציר מנהלים קצר בתחילת המסמך.",
+    "promptExcelClean": "ניקוי חוברת העבודה",
+    "promptExcelCleanBody": "איתור עיצוב לא עקבי וסידור הגיליון הפעיל.",
+    "promptExcelAnalyze": "ניתוח הנתונים",
+    "promptExcelAnalyzeBody": "הדגשת דפוסים ויצירת תרשים שימושי.",
+    "promptPowerpointPolish": "שיפור המצגת",
+    "promptPowerpointPolishBody": "שיפור היררכיה, עקביות וקריאות.",
+    "promptPowerpointOutline": "בניית מתווה",
+    "promptPowerpointOutlineBody": "הפיכת המצגת לסיפור ברור.",
     "hostWord": "Word",
     "hostExcel": "Excel",
     "hostPowerpoint": "PowerPoint",
@@ -38,6 +67,10 @@
     "providerPlaceholder": "בחרו ספק...",
     "apiKeyLabel": "מפתח API",
     "apiKeyPlaceholder": "sk-...",
+    "baseUrlLabel": "כתובת השרת",
+    "lmStudioHint": "הפעילו את השרת המקומי של LM Studio ואז בחרו מודל טעון.",
+    "ollamaHint": "כתובת שרת Ollama המקומי.",
+    "openAiCompatibleHint": "כתובת הבסיס של API תואם OpenAI, בדרך כלל מסתיימת ב־/v1.",
     "geminiApiKeyLabel": "מפתח Gemini API",
     "geminiApiKeyPlaceholder": "AI...",
     "changeKey": "שינוי מפתח",
@@ -92,16 +125,27 @@
     "mcpRestartAria": "הפעל מחדש את {{label}}",
     "mcpRemoveAria": "הסר את {{label}}",
     "mcpPolicyAria": "מדיניות עבור {{tool}}",
+    "mcpPolicyAllow": "אפשר",
+    "mcpPolicyAsk": "שאל",
+    "mcpPolicyDeny": "חסום",
+    "mcpAllTools": "כל הכלים",
     "mcpEnabled": "מופעל",
     "mcpDisabled": "מושבת",
     "mcpDefault": "ברירת מחדל: {{policy}}",
+    "mcpTimeoutLabel": "זמן קצוב",
     "mcpTools": "כלים",
     "mcpShowLog": "הצג יומן stderr",
+    "mcpHideLog": "הסתר יומן stderr",
     "mcpLogAria": "יומן stderr עבור {{label}}",
     "mcpLogEmpty": "(ריק)",
     "languageSection": "שפה",
     "languageLabel": "שפה",
-    "languagePlaceholder": "בחרו שפה..."
+    "languagePlaceholder": "בחרו שפה...",
+    "appearanceSection": "מראה",
+    "themeLabel": "ערכת נושא",
+    "themeSystem": "לפי הגדרת המערכת",
+    "themeLight": "בהירה",
+    "themeDark": "כהה"
   },
   "code": {
     "approveButton": "אישור והרצה",
@@ -115,7 +159,8 @@
     "errorDetails": "פרטי שגיאה",
     "result": "תוצאה",
     "generatingCode": "יוצר קוד...",
-    "toolActivity": "חיפש: {{toolName}}"
+    "toolActivity": "חיפש: {{toolName}}",
+    "changeSummary": "השינוי המתוכנן"
   },
   "fatal": {
     "cannotStart": "לא ניתן להפעיל את AutoOffice"
@@ -129,7 +174,16 @@
     "filterExcel": "Excel",
     "filterPowerpoint": "PowerPoint",
     "empty": "עוד אין שיחות — התחילו לדבר כדי ליצור אחת.",
+    "dialogAria": "היסטוריית שיחות",
+    "showAllHosts": "הצגת כל היישומים",
+    "conversationAria": "שיחה: {{title}}",
+    "untitled": "(ללא כותרת)",
+    "updated": "עודכן {{time}}",
     "messageCount_one": "הודעה {{n}}",
+    "messageCount_zero": "{{n}} הודעות",
+    "messageCount_two": "{{n}} הודעות",
+    "messageCount_few": "{{n}} הודעות",
+    "messageCount_many": "{{n}} הודעות",
     "messageCount_other": "{{n}} הודעות",
     "renameAria": "שינוי שם",
     "deleteAria": "מחיקה",
@@ -138,7 +192,8 @@
     "deleteConfirmTitle": "למחוק את השיחה?",
     "deleteConfirmCancel": "ביטול",
     "deleteConfirmConfirm": "מחיקה",
-    "newChatPlaceholder": "צ'אט חדש"
+    "newChatPlaceholder": "צ'אט חדש",
+    "relativeNow": "עכשיו"
   },
   "errorBubble": {
     "copyButton": "העתקה",
@@ -148,6 +203,7 @@
     "message": "השיחה הזו נפתחה ב-{{chatHost}}, וכעת אתם ב-{{currentHost}}. הודעות חדשות ירוצו מול ה-API של {{currentHost}}."
   },
   "accessibility": {
-    "languageChanged": "שפה: {{language}}"
+    "languageChanged": "שפה: {{language}}",
+    "streamingResponse": "התגובה מתקבלת"
   }
 }

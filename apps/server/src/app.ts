@@ -72,6 +72,7 @@ export function createApp(config: AppConfig) {
       messages,
       registry,
       hub,
+      settings,
       modelOverride,
     }),
   );

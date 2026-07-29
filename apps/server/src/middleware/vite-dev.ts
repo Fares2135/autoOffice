@@ -39,7 +39,10 @@ export async function makeViteMiddleware(): Promise<MiddlewareHandler> {
   const webRoot = fileURLToPath(new URL('../../../web', import.meta.url));
   const vite = await createServer({
     root: webRoot,
-    server: { middlewareMode: true },
+    // This adapter forwards HTTP through Hono but has no WebSocket upgrade
+    // bridge. Disable Vite HMR so clients do not repeatedly connect to a
+    // phantom WebSocket port and emit console errors.
+    server: { middlewareMode: true, hmr: false },
     appType: 'spa',
     logLevel: 'silent',
     clearScreen: false,

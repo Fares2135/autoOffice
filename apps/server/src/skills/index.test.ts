@@ -29,6 +29,15 @@ describe('skills registry', () => {
     expect(readSkill(candidate)).toBeTruthy();
   });
 
+  it('ships Arabic and mixed-direction Word guidance', () => {
+    expect(listSkillsForHost('word')).toContain('arabic-rtl');
+    const body = readSkill('word/arabic-rtl');
+    expect(body).toContain('Never reverse Arabic strings');
+    expect(body).toContain('Word.SectionDirection.rightToLeft');
+    expect(body).toContain('Word.TableDirection.rightToLeft');
+    expect(body).toContain('التقرير Q3 — 2026');
+  });
+
   it('rejects path traversal', () => {
     expect(readSkill('../foo')).toBeNull();
   });

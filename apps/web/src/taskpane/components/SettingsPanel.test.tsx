@@ -1,21 +1,25 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { SettingsPanel } from './SettingsPanel';
 import { bootstrap, _resetForTests } from '../api';
 import { LanguageProvider } from '../i18n/index';
 import type { ProviderConfig, McpServerView, Settings } from '@autooffice/shared';
+import { ThemeProvider } from '../theme/context';
 
 const wrap = (ui: React.ReactElement) =>
   render(
-    <LanguageProvider initialLocale="en">
-      <FluentProvider theme={webLightTheme}>{ui}</FluentProvider>
-    </LanguageProvider>,
+    <ThemeProvider>
+      <LanguageProvider initialLocale="en">
+        <FluentProvider theme={webLightTheme}>{ui}</FluentProvider>
+      </LanguageProvider>
+    </ThemeProvider>,
   );
 
 const settingsPayload: Settings = {
   locale: 'en',
+  theme: 'system',
   autoApprove: false,
   maxSteps: 20,
   selectedProviderId: null,
@@ -351,8 +355,8 @@ describe('SettingsPanel — MCP', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'MCP' }));
     await waitFor(() => expect(screen.getByText('fs-server')).toBeInTheDocument());
 
-    const policySelect = screen.getByLabelText('Policy for list_files') as HTMLSelectElement;
-    fireEvent.change(policySelect, { target: { value: 'deny' } });
+    const policyGroup = screen.getByRole('group', { name: 'Policy for list_files' });
+    fireEvent.click(within(policyGroup).getByRole('button', { name: 'Deny' }));
 
     await waitFor(() => {
       expect(putBody).toEqual({ policy: 'deny' });

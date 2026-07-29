@@ -2,8 +2,14 @@
   "name": "autooffice",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "AutoOffice — local full-stack",
   "license": "MIT",
+  "engines": {
+    "node": "22.x",
+    "npm": ">=10 <12"
+  },
+  "packageManager": "npm@11.12.1",
   "workspaces": [
     "apps/*",
     "packages/*",

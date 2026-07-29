@@ -4,9 +4,12 @@ import * as z from 'zod';
 // LOCALES registry — the server validates against this list so the locale
 // setting can't get into an unknown state (which would force the web app
 // to fall back to defaults silently).
-export const LOCALE_IDS = ['en', 'he'] as const;
+export const LOCALE_IDS = ['en', 'ar', 'he'] as const;
 export type LocaleId = (typeof LOCALE_IDS)[number];
 export const LocaleIdSchema = z.enum(LOCALE_IDS);
+export const THEME_MODES = ['system', 'light', 'dark'] as const;
+export type ThemeMode = (typeof THEME_MODES)[number];
+export const ThemeModeSchema = z.enum(THEME_MODES);
 
 export function isLocaleId(s: unknown): s is LocaleId {
   return typeof s === 'string' && (LOCALE_IDS as readonly string[]).includes(s);
@@ -14,6 +17,7 @@ export function isLocaleId(s: unknown): s is LocaleId {
 
 export const SettingsSchema = z.object({
   locale: LocaleIdSchema.default('en'),
+  theme: ThemeModeSchema.default('system'),
   autoApprove: z.boolean().default(false),
   maxSteps: z.number().int().min(1).max(50).default(20),
   selectedProviderId: z.string().nullable().default(null),
@@ -29,6 +33,7 @@ export const DEFAULT_SETTINGS: Settings = SettingsSchema.parse({});
 // applies defaults and would clobber unrelated fields like selectedProviderId).
 export const SettingsPatchSchema = z.object({
   locale: LocaleIdSchema.optional(),
+  theme: ThemeModeSchema.optional(),
   autoApprove: z.boolean().optional(),
   maxSteps: z.number().int().min(1).max(50).optional(),
   selectedProviderId: z.string().nullable().optional(),

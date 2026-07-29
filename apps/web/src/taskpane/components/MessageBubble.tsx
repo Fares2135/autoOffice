@@ -9,6 +9,7 @@ import { ApprovalRequestedPart } from './parts/ApprovalRequestedPart';
 import { CliTextPart, hasCliTools } from './parts/CliTextPart';
 import { isCliBridge } from '@autooffice/shared';
 import type { ProviderConfig, ProviderKind } from '@autooffice/shared';
+import { useTranslation } from '../i18n/index.ts';
 
 const useStyles = makeStyles({
   container: {
@@ -114,6 +115,7 @@ export function MessageBubble({
   cliHistorical = false,
 }: MessageBubbleProps) {
   const styles = useStyles();
+  const { t } = useTranslation();
   const bubbleClass = message.role === 'user' ? styles.userBubble : styles.assistantBubble;
   const meta = (message.metadata ?? null) as
     | { createdAt?: number; modelId?: string; providerId?: string }
@@ -126,7 +128,7 @@ export function MessageBubble({
 
   return (
     <div className={styles.container}>
-      <div className={bubbleClass}>
+      <div className={bubbleClass} dir="auto">
         {message.parts.map((part, idx) => {
           switch (part.type) {
             case 'text': {
@@ -192,7 +194,7 @@ export function MessageBubble({
             <span className={styles.metaModel}>{modelId}</span>
           )}
           {message.role === 'assistant' && streaming && (
-            <span className={styles.metaSpinner} aria-label="Streaming response">
+            <span className={styles.metaSpinner} aria-label={t('accessibility.streamingResponse')}>
               <Spinner size="extra-tiny" />
             </span>
           )}

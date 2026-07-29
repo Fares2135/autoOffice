@@ -1,53 +1,133 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Sandbox } from './sandbox.ts';
 
-describe('Sandbox.execute — Office.js debug info', () => {
-  beforeEach(() => {
-    (globalThis as Record<string, unknown>).Word = {
-      run: async (fn: (ctx: unknown) => Promise<unknown>) => {
-        const officeError = new Error('A property on this object was not loaded');
-        Object.assign(officeError, {
-          code: 'PropertyNotLoaded',
-          debugInfo: {
-            code: 'PropertyNotLoaded',
-            message: 'The property "text" is not available.',
-            errorLocation: 'Paragraph.text',
-            statement: 'paragraph.text',
-            surroundingStatements: ['paragraph.load("style")', 'paragraph.text'],
-            fullStatements: [],
-          },
-        });
-        await fn({});
-        throw officeError;
-      },
-    };
-  });
+function currentFrame(): HTMLIFrameElement {
+  const iframe = document.querySelector('iframe[title], iframe[aria-hidden="true"]');
+  if (!(iframe instanceof HTMLIFrameElement)) throw new Error('sandbox iframe not found');
+  return iframe;
+}
+
+function dispatchFrom(frame: HTMLIFrameElement, data: unknown): void {
+  window.dispatchEvent(new MessageEvent('message', {
+    source: frame.contentWindow,
+    data,
+  }));
+}
+
+describe('Sandbox iframe bridge', () => {
+  const sandboxes: Sandbox[] = [];
 
   afterEach(() => {
-    delete (globalThis as Record<string, unknown>).Word;
+    for (const sandbox of sandboxes) sandbox.destroy();
+    sandboxes.length = 0;
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
   });
 
-  it('captures debugInfo on OfficeExtension.Error', async () => {
+  it('creates an opaque-origin, script-only iframe', () => {
     const sandbox = new Sandbox('word');
+    sandboxes.push(sandbox);
     sandbox.init();
-    const result = await sandbox.execute('return 1;');
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('PropertyNotLoaded');
-    expect(result.debugInfo).toBeDefined();
-    expect(result.debugInfo?.errorLocation).toBe('Paragraph.text');
-    expect(result.debugInfo?.statement).toBe('paragraph.text');
+
+    const frame = currentFrame();
+    expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+    expect(frame.hidden).toBe(true);
+    expect(new URL(frame.src).pathname).toMatch(/\/iframe\.html$/);
   });
 
-  it('still works for plain errors (no debugInfo)', async () => {
-    delete (globalThis as Record<string, unknown>).Word;
-    (globalThis as Record<string, unknown>).Word = {
-      run: async () => { throw new Error('plain'); },
+  it('sends code only after readiness and resolves a matching response', async () => {
+    const sandbox = new Sandbox('word');
+    sandboxes.push(sandbox);
+    sandbox.init();
+    const frame = currentFrame();
+    const postMessage = vi.spyOn(frame.contentWindow!, 'postMessage');
+
+    dispatchFrom(frame, { type: 'sandbox-ready' });
+    const resultPromise = sandbox.execute('return 42;');
+    await vi.waitFor(() => expect(postMessage).toHaveBeenCalledOnce());
+
+    const request = postMessage.mock.calls[0]![0] as {
+      type: string; id: string; code: string; host: string;
     };
-    const sandbox = new Sandbox('word');
+    expect(request).toMatchObject({ type: 'execute', code: 'return 42;', host: 'word' });
+
+    dispatchFrom(frame, {
+      type: 'result',
+      id: request.id,
+      success: true,
+      output: 42,
+      logs: ['ok'],
+    });
+    await expect(resultPromise).resolves.toEqual({
+      success: true,
+      output: 42,
+      error: undefined,
+      stack: undefined,
+      logs: ['ok'],
+      debugInfo: undefined,
+    });
+  });
+
+  it('ignores messages from other windows and unknown request ids', async () => {
+    const sandbox = new Sandbox('excel');
+    sandboxes.push(sandbox);
     sandbox.init();
-    const result = await sandbox.execute('return 1;');
+    const frame = currentFrame();
+    const postMessage = vi.spyOn(frame.contentWindow!, 'postMessage');
+    dispatchFrom(frame, { type: 'sandbox-ready' });
+
+    const resultPromise = sandbox.execute('return 7;');
+    await vi.waitFor(() => expect(postMessage).toHaveBeenCalledOnce());
+    const request = postMessage.mock.calls[0]![0] as { id: string };
+
+    window.dispatchEvent(new MessageEvent('message', {
+      source: window,
+      data: { type: 'result', id: request.id, success: true, output: 'spoofed' },
+    }));
+    dispatchFrom(frame, { type: 'result', id: 'unknown', success: true, output: 'spoofed' });
+    dispatchFrom(frame, { type: 'result', id: request.id, success: true, output: 7 });
+
+    await expect(resultPromise).resolves.toMatchObject({ success: true, output: 7 });
+  });
+
+  it('preserves Office debug information returned by the iframe', async () => {
+    const sandbox = new Sandbox('word');
+    sandboxes.push(sandbox);
+    sandbox.init();
+    const frame = currentFrame();
+    const postMessage = vi.spyOn(frame.contentWindow!, 'postMessage');
+    dispatchFrom(frame, { type: 'sandbox-ready' });
+
+    const resultPromise = sandbox.execute('return context.document.body.text;');
+    await vi.waitFor(() => expect(postMessage).toHaveBeenCalledOnce());
+    const request = postMessage.mock.calls[0]![0] as { id: string };
+
+    dispatchFrom(frame, {
+      type: 'error',
+      id: request.id,
+      success: false,
+      error: 'PropertyNotLoaded',
+      debugInfo: { errorLocation: 'Body.text', statement: 'body.text' },
+    });
+
+    await expect(resultPromise).resolves.toMatchObject({
+      success: false,
+      error: 'PropertyNotLoaded',
+      debugInfo: { errorLocation: 'Body.text', statement: 'body.text' },
+    });
+  });
+
+  it('resets the iframe when execution times out', async () => {
+    const sandbox = new Sandbox('powerpoint');
+    sandboxes.push(sandbox);
+    sandbox.init();
+    const original = currentFrame();
+    dispatchFrom(original, { type: 'sandbox-ready' });
+
+    const result = await sandbox.execute('return new Promise(() => {});', 5);
     expect(result.success).toBe(false);
-    expect(result.error).toBe('plain');
-    expect(result.debugInfo).toBeUndefined();
+    expect(result.error).toContain('sandbox was reset');
+    expect(currentFrame()).not.toBe(original);
   });
 });

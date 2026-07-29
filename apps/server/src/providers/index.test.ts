@@ -31,4 +31,14 @@ describe('ProviderRegistry', () => {
     const model = await reg.resolve(id, 'claude-opus-4-7');
     expect(model).not.toBeNull();
   });
+
+  it.each([
+    ['lmstudio', 'local-model'],
+    ['ollama', 'llama3.2'],
+  ] as const)('resolves local provider %s without an API key', async (kind, modelId) => {
+    const id = repo.create({ kind, label: kind });
+    const model = await reg.resolve(id, modelId);
+    expect(model).not.toBeNull();
+    expect(await reg.getStatus(id)).toBe('ready');
+  });
 });

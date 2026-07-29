@@ -4,3 +4,4 @@ export * from './provider';
 export * from './known-models';
 export * from './mcp';
 export * from './legacy-import';
+export * from './usage';

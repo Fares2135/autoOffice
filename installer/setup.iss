@@ -7,7 +7,6 @@
 #define MyAppPublisher "AutoOffice"
 #define MyAppURL "https://sivan22.github.io/autoOffice/"
 #define ShareName "AutoOfficeAddin"
-#define OwnSharePath "C:\AutoOfficeAddin"
 
 [Setup]
 AppId={{B2C3D4E5-F6A7-8901-BCDE-F12345678902}
@@ -50,8 +49,10 @@ Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{{B2C3D4
 [Code]
 var
   NetworkPath: string;
+  OwnSharePath: string;
   HostCatalogUrl: string;
   UseHostCatalog: Boolean;
+  CreatedOwnShare: Boolean;
 
 function GetNetworkPath(Param: string): string;
 begin
@@ -65,20 +66,24 @@ begin
     Result := 'localhost';
 end;
 
-procedure CloseWordIfRunning;
-var
-  ResultCode: Integer;
-begin
-  Exec('taskkill', '/F /IM WINWORD.EXE', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-end;
-
 function CreateNetworkShare(ShareName, SharePath: string): Boolean;
 var
   ResultCode: Integer;
   Command: string;
+  CurrentUser: string;
 begin
-  Exec('net', 'share ' + ShareName + ' /delete /y', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Command := 'share ' + ShareName + '="' + SharePath + '" /GRANT:Everyone,FULL';
+  CurrentUser := GetEnv('USERNAME');
+  if CurrentUser = '' then
+  begin
+    Result := False;
+    Exit;
+  end;
+  // The Office catalog only needs to read its manifest. Never expose a
+  // world-writable share, and never delete a pre-existing share with the same
+  // name: a name collision must fail closed.
+  Command :=
+    'share ' + ShareName + '="' + SharePath + '" /GRANT:"' +
+    CurrentUser + '",READ';
   Result := Exec('net', Command, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
@@ -109,9 +114,11 @@ end;
 
 procedure InitializeWizard;
 begin
+  OwnSharePath := ExpandConstant('{commonappdata}\AutoOfficeAddin\catalog');
   NetworkPath := '\\' + GetComputerNetName + '\{#ShareName}';
   HostCatalogUrl := FindHostCatalogUrl;
   UseHostCatalog := HostCatalogUrl <> '';
+  CreatedOwnShare := False;
 end;
 
 function ShouldCreateOwnCatalog: Boolean;
@@ -123,19 +130,27 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   TargetFile: string;
 begin
-  // Close Word, and (only when registering our own catalog) clear the stale
-  // WEF cache and create the share BEFORE [Registry] runs, so Word never
-  // sees a registry entry pointing at a not-yet-existent share.
+  // Create only AutoOffice-owned resources. We intentionally do not kill
+  // Office applications or clear the shared WEF cache: either action can lose
+  // unsaved work or remove state belonging to other add-ins.
   if CurStep = ssInstall then
   begin
-    CloseWordIfRunning;
     if not UseHostCatalog then
     begin
-      DelTree(ExpandConstant('{localappdata}\Microsoft\Office\16.0\Wef'), True, True, True);
-      if not DirExists('{#OwnSharePath}') then
-        CreateDir('{#OwnSharePath}');
-      if not CreateNetworkShare('{#ShareName}', '{#OwnSharePath}') then
-        MsgBox('Warning: Could not create network share. You may need to share the folder manually.', mbInformation, MB_OK);
+      if not DirExists(OwnSharePath) then
+        CreateDir(OwnSharePath);
+      CreatedOwnShare := CreateNetworkShare('{#ShareName}', OwnSharePath);
+      if not CreatedOwnShare then
+      begin
+        MsgBox(
+          'AutoOffice could not create its read-only Office catalog share. ' +
+          'A share named "{#ShareName}" may already exist. Installation will stop without changing that share.',
+          mbError,
+          MB_OK
+        );
+        Abort;
+      end;
+      RegWriteDWordValue(HKCU, 'Software\AutoOffice\Installer', 'OwnsCatalogShare', 1);
     end;
   end;
   if CurStep = ssPostInstall then
@@ -159,25 +174,27 @@ var
 begin
   if CurUninstallStep = usPostUninstall then
   begin
+    OwnSharePath := ExpandConstant('{commonappdata}\AutoOfficeAddin\catalog');
     // Remove only the manifest we placed; never touch a catalog/share we
     // didn't create.
     if RegQueryStringValue(HKCU, 'Software\AutoOffice\Installer', 'ManifestPath', ManifestPath) then
     begin
       if FileExists(ManifestPath) then
         DeleteFile(ManifestPath);
-      RegDeleteKeyIncludingSubkeys(HKCU, 'Software\AutoOffice');
     end;
     // If the standalone share/folder exists, it was created by us.
-    if DirExists('{#OwnSharePath}') then
+    if RegValueExists(HKCU, 'Software\AutoOffice\Installer', 'OwnsCatalogShare') then
     begin
       Exec('net', 'share {#ShareName} /delete /y', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      if MsgBox('Remove the shared folder ({#OwnSharePath})?', mbConfirmation, MB_YESNO) = IDYES then
-        DelTree('{#OwnSharePath}', True, True, True);
+      if DirExists(OwnSharePath) then
+        DelTree(OwnSharePath, True, True, True);
+      RegDeleteValue(HKCU, 'Software\AutoOffice\Installer', 'OwnsCatalogShare');
     end;
     if MsgBox('Also remove your AutoOffice data folder (chat history, settings, provider keys)?', mbConfirmation, MB_YESNO) = IDYES then
     begin
       DelTree(ExpandConstant('{localappdata}\AutoOffice'), True, True, True);
     end;
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\AutoOffice');
   end;
 end;
 
@@ -187,7 +204,8 @@ Filename: "schtasks.exe"; Parameters: "/Create /F /SC ONLOGON /TN ""AutoOffice\S
 Filename: "schtasks.exe"; Parameters: "/Run /TN ""AutoOffice\Service"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting AutoOffice Service ..."
 
 [Messages]
-FinishedLabel=ההתקנה הסתיימה בהצלחה.%n%nכדי להשתמש בתוסף ב-Word, Excel או PowerPoint:%n%n1. פתח את Microsoft Word, Excel או PowerPoint%n2. עבור לעמוד הבית > תוספות%n3. לחץ על "תיקייה משותפת" בחלק התחתון%n4. בחר "AutoOffice" והקלק הוסף
+english.FinishedLabel=Installation completed successfully.%n%nTo use the add-in in Word, Excel, or PowerPoint:%n%n1. Open Microsoft Word, Excel, or PowerPoint%n2. Go to Home > Add-ins%n3. Select "Shared Folder" at the bottom%n4. Choose "AutoOffice" and click Add
+hebrew.FinishedLabel=ההתקנה הסתיימה בהצלחה.%n%nכדי להשתמש בתוסף ב-Word, Excel או PowerPoint:%n%n1. פתח את Microsoft Word, Excel או PowerPoint%n2. עבור לעמוד הבית > תוספות%n3. לחץ על "תיקייה משותפת" בחלק התחתון%n4. בחר "AutoOffice" והקלק הוסף
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

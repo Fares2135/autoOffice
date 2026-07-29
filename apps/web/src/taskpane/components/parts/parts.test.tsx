@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { TextPart } from './TextPart';
 import { ExecuteCodePart } from './ExecuteCodePart';
@@ -8,15 +8,36 @@ import { StepStartPart } from './StepStartPart';
 import { LookupSkillPart } from './LookupSkillPart';
 import { DynamicToolPart } from './DynamicToolPart';
 import { ApprovalRequestedPart } from './ApprovalRequestedPart';
+import { LanguageProvider } from '../../i18n/index';
+import { translationService } from '../../i18n/index';
+
+beforeAll(async () => {
+  await translationService.setLocale('en');
+});
+
+afterEach(() => cleanup());
 
 function renderWithFluent(ui: React.ReactElement) {
-  return render(<FluentProvider theme={webLightTheme}>{ui}</FluentProvider>);
+  return render(
+    <LanguageProvider initialLocale="en">
+      <FluentProvider theme={webLightTheme}>{ui}</FluentProvider>
+    </LanguageProvider>,
+  );
 }
 
 describe('TextPart', () => {
   it('renders text', () => {
     render(<TextPart part={{ text: 'hello' }} />);
     expect(screen.getByText('hello')).toBeInTheDocument();
+  });
+
+  it('renders safe Markdown and mixed Arabic/Latin text', () => {
+    const { container } = render(
+      <TextPart part={{ text: '**تم** تحديث `Q3` <script>alert(1)</script>' }} />,
+    );
+    expect(screen.getByText('تم')).toHaveTextContent('تم');
+    expect(screen.getByText('Q3')).toHaveAttribute('dir', 'ltr');
+    expect(container.querySelector('script')).toBeNull();
   });
 });
 
@@ -53,6 +74,23 @@ describe('ExecuteCodePart', () => {
     );
     expect(screen.getByText('kaboom')).toBeInTheDocument();
   });
+
+  it('shows a user-facing change summary before code', () => {
+    renderWithFluent(
+      <ExecuteCodePart
+        part={{
+          state: 'input-available',
+          toolCallId: 'tc',
+          input: { summary: 'تنسيق العناوين', code: 'await context.sync()' },
+        }}
+        onApprove={() => {}}
+        onReject={() => {}}
+        highlight={(s) => s}
+      />,
+    );
+    expect(screen.getByText('Planned change')).toBeInTheDocument();
+    expect(screen.getByText('تنسيق العناوين')).toHaveAttribute('dir', 'auto');
+  });
 });
 
 describe('LookupSkillPart', () => {
@@ -72,21 +110,23 @@ describe('LookupSkillPart', () => {
 });
 
 describe('DynamicToolPart', () => {
-  it('renders tool name and state in summary', () => {
+  it('renders tool name and a friendly completed state', () => {
     render(<DynamicToolPart part={{ toolName: 'mcp_x/list', state: 'output-available', input: {} }} />);
-    expect(screen.getByText(/mcp_x\/list \(output-available\)/)).toBeInTheDocument();
+    expect(screen.getByText('mcp_x/list')).toBeInTheDocument();
+    expect(screen.getByText('Done')).toBeInTheDocument();
   });
 });
 
 describe('ApprovalRequestedPart', () => {
-  it('returns null unless state is approval-requested', () => {
+  it('renders completed tool output as a regular tool part', () => {
     const { container } = render(
       <ApprovalRequestedPart
         part={{ type: 'tool-x', state: 'output-available' }}
         onResponse={() => {}}
       />,
     );
-    expect(container.firstChild).toBeNull();
+    expect(container.firstChild).not.toBeNull();
+    expect(screen.getByText('Done')).toBeInTheDocument();
   });
 
   it('calls onResponse with approved=true on Approve click', () => {
@@ -102,7 +142,7 @@ describe('ApprovalRequestedPart', () => {
         onResponse={onResponse}
       />,
     );
-    fireEvent.click(screen.getByText('Approve'));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     expect(onResponse).toHaveBeenCalledWith('a1', true);
   });
 
@@ -119,7 +159,7 @@ describe('ApprovalRequestedPart', () => {
         onResponse={onResponse}
       />,
     );
-    fireEvent.click(screen.getByText('Deny'));
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }));
     expect(onResponse).toHaveBeenCalledWith('a1', false);
   });
 });

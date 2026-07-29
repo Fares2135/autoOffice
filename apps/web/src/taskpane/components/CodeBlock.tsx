@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { createHighlighter, type Highlighter } from 'shiki';
+import { useOptionalThemeMode } from '../theme/context.tsx';
 
 const LANGS = ['javascript', 'typescript'] as const;
-const THEME = 'github-light';
+const THEMES = ['github-light', 'github-dark'] as const;
 
 let highlighterPromise: Promise<Highlighter> | null = null;
 
@@ -13,7 +14,7 @@ let highlighterPromise: Promise<Highlighter> | null = null;
 export function getSharedHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
-      themes: [THEME],
+      themes: [...THEMES],
       langs: [...LANGS],
     });
   }
@@ -37,13 +38,15 @@ export function CodeBlock({
   lang?: 'javascript' | 'typescript';
 }): React.ReactElement {
   const [html, setHtml] = useState<string | null>(null);
+  const themeMode = useOptionalThemeMode();
+  const theme = themeMode?.resolved === 'dark' ? 'github-dark' : 'github-light';
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const hi = await getSharedHighlighter();
-        const out = hi.codeToHtml(code, { lang, theme: THEME });
+        const out = hi.codeToHtml(code, { lang, theme });
         const ltr = out.replace('<pre ', '<pre style="direction:ltr;text-align:left" ');
         if (!cancelled) setHtml(ltr);
       } catch {
@@ -53,7 +56,7 @@ export function CodeBlock({
     return () => {
       cancelled = true;
     };
-  }, [code, lang]);
+  }, [code, lang, theme]);
 
   if (html) {
     return (

@@ -10,8 +10,12 @@
   <Version>1.0.0.0</Version>
   <ProviderName>AutoOffice</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="AutoOffice" />
-  <Description DefaultValue="AI-powered dynamic code execution add-in for Microsoft Word, Excel, and PowerPoint" />
+  <DisplayName DefaultValue="AutoOffice">
+    <Override Locale="ar-SA" Value="أوتو أوفيس" />
+  </DisplayName>
+  <Description DefaultValue="AI-powered dynamic code execution add-in for Microsoft Word, Excel, and PowerPoint">
+    <Override Locale="ar-SA" Value="مساعد ذكي لتعديل مستندات Word ومصنفات Excel وعروض PowerPoint" />
+  </Description>
   <IconUrl DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-32.png" />
   <HighResolutionIconUrl DefaultValue="https://sivan22.github.io/autoOffice/assets/icon-64.png" />
   <SupportUrl DefaultValue="https://github.com/Sivan22/autoOffice" />
@@ -154,13 +158,23 @@
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/Sivan22/autoOffice" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="AutoOffice is ready" />
-        <bt:String id="CommandsGroup.Label" DefaultValue="AutoOffice" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="AutoOffice" />
+        <bt:String id="GetStarted.Title" DefaultValue="AutoOffice is ready">
+          <bt:Override Locale="ar-SA" Value="أوتو أوفيس جاهز" />
+        </bt:String>
+        <bt:String id="CommandsGroup.Label" DefaultValue="AutoOffice">
+          <bt:Override Locale="ar-SA" Value="أوتو أوفيس" />
+        </bt:String>
+        <bt:String id="TaskpaneButton.Label" DefaultValue="AutoOffice">
+          <bt:Override Locale="ar-SA" Value="أوتو أوفيس" />
+        </bt:String>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="AI-powered assistant for Word, Excel, and PowerPoint" />
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the AutoOffice AI assistant" />
+        <bt:String id="GetStarted.Description" DefaultValue="AI-powered assistant for Word, Excel, and PowerPoint">
+          <bt:Override Locale="ar-SA" Value="مساعد ذكي لـ Word وExcel وPowerPoint" />
+        </bt:String>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the AutoOffice AI assistant">
+          <bt:Override Locale="ar-SA" Value="فتح مساعد أوتو أوفيس الذكي" />
+        </bt:String>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

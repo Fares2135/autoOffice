@@ -36,9 +36,11 @@ import type {
   McpPolicy,
   CreateMcpServerInput,
   McpStatus,
+  ThemeMode,
 } from '@autooffice/shared';
 import { getKnownModels } from '@autooffice/shared';
 import { availableLocales, useTranslation, type LocaleId } from '../i18n/index.ts';
+import { useThemeMode } from '../theme/context.tsx';
 
 const useStyles = makeStyles({
   container: {
@@ -132,6 +134,22 @@ const useStyles = makeStyles({
     whiteSpace: 'nowrap',
     minWidth: 0,
   },
+  mcpLog: {
+    margin: 0,
+    padding: '8px',
+    maxHeight: '160px',
+    overflow: 'auto',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    direction: 'ltr',
+    textAlign: 'left',
+    fontFamily: 'Consolas, "Courier New", monospace',
+    fontSize: '11px',
+    color: tokens.colorNeutralForeground2,
+    backgroundColor: tokens.colorNeutralBackground1,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: '4px',
+  },
 });
 
 const useTriSwitchStyles = makeStyles({
@@ -183,6 +201,7 @@ const PROVIDER_KINDS: { value: ProviderKind; label: string }[] = [
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'openrouter', label: 'OpenRouter' },
   { value: 'ollama', label: 'Ollama' },
+  { value: 'lmstudio', label: 'LM Studio' },
   { value: 'openai-compatible', label: 'OpenAI-compatible' },
   { value: 'vercel-gateway', label: 'Vercel AI Gateway' },
   { value: 'claude-code', label: 'Claude Code (CLI)' },
@@ -248,6 +267,7 @@ function GeneralSection() {
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
   const { t, setLocale } = useTranslation();
+  const { setMode: setThemeMode } = useThemeMode();
   const locales = availableLocales();
 
   const reload = useCallback(async () => {
@@ -486,7 +506,7 @@ function GeneralSection() {
 
       <div className={styles.section}>
         <Text weight="semibold" size={300}>
-          {t('settings.languageSection')}
+          {t('settings.appearanceSection')}
         </Text>
         <Field label={t('settings.languageLabel')}>
           <Select
@@ -502,6 +522,20 @@ function GeneralSection() {
                 {l.nativeName}
               </option>
             ))}
+          </Select>
+        </Field>
+        <Field label={t('settings.themeLabel')}>
+          <Select
+            value={settings.theme}
+            onChange={(_, d) => {
+              const next = d.value as ThemeMode;
+              setThemeMode(next);
+              void updateSettings({ theme: next });
+            }}
+          >
+            <option value="system">{t('settings.themeSystem')}</option>
+            <option value="light">{t('settings.themeLight')}</option>
+            <option value="dark">{t('settings.themeDark')}</option>
           </Select>
         </Field>
       </div>
@@ -636,6 +670,13 @@ function ProviderCredentials({
   const [opencodePort, setOpencodePort] = useState(
     cfg.port != null ? String(cfg.port) : '',
   );
+  const defaultBaseUrl =
+    kind === 'lmstudio'
+      ? 'http://127.0.0.1:1234/v1'
+      : kind === 'ollama'
+        ? 'http://127.0.0.1:11434'
+        : '';
+  const [baseUrl, setBaseUrl] = useState((cfg.baseURL as string) ?? defaultBaseUrl);
 
   // When the user switches kind or the underlying provider changes, reset the
   // local draft state to match the stored config.
@@ -646,6 +687,7 @@ function ProviderCredentials({
     );
     setOpencodeHostname((cfg.hostname as string) ?? '');
     setOpencodePort(cfg.port != null ? String(cfg.port) : '');
+    setBaseUrl((cfg.baseURL as string) ?? defaultBaseUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider?.id, kind]);
 
@@ -734,6 +776,53 @@ function ProviderCredentials({
               void onSave({ config: nextCfg }).catch(() => {});
             }}
             placeholder={t('settings.opencodePortPlaceholder')}
+          />
+        </Field>
+      </>
+    );
+  }
+
+  if (kind === 'lmstudio' || kind === 'ollama') {
+    return (
+      <Field
+        label={t('settings.baseUrlLabel')}
+        hint={t(kind === 'lmstudio' ? 'settings.lmStudioHint' : 'settings.ollamaHint')}
+      >
+        <Input
+          value={baseUrl}
+          onChange={(_, d) => setBaseUrl(d.value)}
+          onBlur={() => {
+            const value = baseUrl.trim() || defaultBaseUrl;
+            setBaseUrl(value);
+            if ((cfg.baseURL ?? defaultBaseUrl) === value) return;
+            void onSave({ config: { ...cfg, baseURL: value } }).catch(() => {});
+          }}
+          placeholder={defaultBaseUrl}
+        />
+      </Field>
+    );
+  }
+
+  if (kind === 'openai-compatible') {
+    return (
+      <>
+        <Field label={t('settings.baseUrlLabel')} hint={t('settings.openAiCompatibleHint')}>
+          <Input
+            value={baseUrl}
+            onChange={(_, d) => setBaseUrl(d.value)}
+            onBlur={() => {
+              const value = baseUrl.trim();
+              if ((cfg.baseURL ?? '') === value) return;
+              void onSave({ config: { ...cfg, baseURL: value } }).catch(() => {});
+            }}
+            placeholder="https://example.com/v1"
+          />
+        </Field>
+        <Field label={t('settings.apiKeyLabel')}>
+          <ApiKeyControl
+            hasKey={!!provider?.hasKey}
+            onCommit={commitApiKey}
+            placeholder={t('settings.apiKeyPlaceholder')}
           />
         </Field>
       </>
@@ -1131,10 +1220,24 @@ function AddMcpForm({ onAdd }: { onAdd: (input: CreateMcpServerInput) => void })
 
 const POLICY_OPTIONS: McpPolicy[] = ['allow', 'ask', 'deny'];
 
-function TriSwitch({ value, onChange }: { value: McpPolicy | null; onChange: (v: McpPolicy) => void }) {
+function TriSwitch({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: McpPolicy | null;
+  onChange: (v: McpPolicy) => void;
+  ariaLabel: string;
+}) {
   const s = useTriSwitchStyles();
+  const { t } = useTranslation();
+  const labels: Record<McpPolicy, string> = {
+    allow: t('settings.mcpPolicyAllow'),
+    ask: t('settings.mcpPolicyAsk'),
+    deny: t('settings.mcpPolicyDeny'),
+  };
   return (
-    <div className={s.root} role="group">
+    <div className={s.root} role="group" aria-label={ariaLabel}>
       {POLICY_OPTIONS.map((opt) => (
         <button
           key={opt}
@@ -1146,8 +1249,9 @@ function TriSwitch({ value, onChange }: { value: McpPolicy | null; onChange: (v:
             value === opt && opt === 'deny' && s.activeDeny,
           )}
           onClick={() => onChange(opt)}
+          aria-pressed={value === opt}
         >
-          {opt}
+          {labels[opt]}
         </button>
       ))}
     </div>
@@ -1174,7 +1278,31 @@ function McpServerCard({
   const styles = useStyles();
   const { t } = useTranslation();
   const [timeoutDraft, setTimeoutDraft] = useState(String(server.timeoutSeconds));
+  const [logLines, setLogLines] = useState<string[] | null>(null);
+  const [logVisible, setLogVisible] = useState(false);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
   useEffect(() => setTimeoutDraft(String(server.timeoutSeconds)), [server.timeoutSeconds]);
+
+  const toggleLog = async () => {
+    if (logVisible) {
+      setLogVisible(false);
+      return;
+    }
+    setLogVisible(true);
+    if (logLines !== null) return;
+    setLogLoading(true);
+    setLogError(null);
+    try {
+      const result = await apiGet<{ lines: string[] }>(`/api/mcp/servers/${server.id}/log`);
+      setLogLines(result.lines);
+    } catch (error) {
+      setLogError((error as Error).message);
+    } finally {
+      setLogLoading(false);
+    }
+  };
+
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
@@ -1235,6 +1363,7 @@ function McpServerCard({
           <div className={styles.toolRow}>
             <span className={styles.toolName} style={{ fontStyle: 'italic' }}>All</span>
             <TriSwitch
+              ariaLabel={t('settings.mcpPolicyAria', { tool: t('settings.mcpAllTools') })}
               value={
                 server.tools.every((t) => t.policy === server.tools[0].policy)
                   ? server.tools[0].policy
@@ -1249,11 +1378,26 @@ function McpServerCard({
                 {tool.name}
               </span>
               <TriSwitch
+                ariaLabel={t('settings.mcpPolicyAria', { tool: tool.name })}
                 value={tool.policy}
                 onChange={(p) => onPolicyChange(tool.name, p)}
               />
             </div>
           ))}
+        </>
+      )}
+      <Button appearance="subtle" size="small" onClick={() => void toggleLog()}>
+        {logVisible ? t('settings.mcpHideLog') : t('settings.mcpShowLog')}
+      </Button>
+      {logVisible && (
+        <>
+          {logLoading && <Spinner size="tiny" />}
+          {logError && <Text size={200} className={styles.errorBanner}>{logError}</Text>}
+          {!logLoading && !logError && (
+            <pre className={styles.mcpLog} aria-label={t('settings.mcpLogAria', { label: server.label })}>
+              {logLines?.length ? logLines.join('\n') : t('settings.mcpLogEmpty')}
+            </pre>
+          )}
         </>
       )}
     </div>

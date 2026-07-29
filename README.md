@@ -16,6 +16,12 @@ AutoOffice is a task-pane add-in you chat with. Describe what you want — for W
 4. Executes it in a sandboxed iframe against your live Word document
 5. Self-heals on errors — feeds the error back to the LLM and retries up to 3 times
 
+The interface is available in English, Arabic, and Hebrew. Arabic and Hebrew
+use a complete RTL layout, while code and mixed-language document content keep
+their natural direction. The agent answers in the user's language and includes
+dedicated guidance for editing Arabic Word documents without reversing text or
+damaging bidirectional formatting.
+
 ## Why AutoOffice
 
 Two things make AutoOffice different from every other AI option for Word and Excel:
@@ -70,7 +76,7 @@ The installer just registers an Office add-in manifest. The task-pane assets the
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22 (the repository includes `.nvmrc` and `.node-version`)
 - Microsoft 365 (Word, Excel, or PowerPoint — Web or Desktop)
 - An API key for Anthropic, OpenAI, or any OpenAI-compatible provider
 
@@ -146,10 +152,12 @@ npm run stop
 
 Open the add-in task pane and click the settings gear:
 
-- **Provider:** Anthropic, OpenAI, or any OpenAI-compatible endpoint (Ollama, LM Studio, etc.)
-- **API Key:** stored locally, never sent anywhere except directly to the provider
+- **Provider:** Anthropic, OpenAI, LM Studio, Ollama, or any OpenAI-compatible endpoint
+- **API Key:** stored locally, never sent anywhere except directly to the provider; local LM Studio and Ollama connections do not require one
 - **Model:** e.g. `claude-opus-4-7`, `gpt-4o`
 - **Auto-approve:** skip the approve step and run code immediately
+- **Theme and language:** system/light/dark themes and English/Arabic/Hebrew UI
+- **Max steps:** cap the number of tool-driven agent steps for each request
 - **MCP Servers:** add HTTP/SSE MCP servers to extend the agent with external tools
 
 ## Project Structure
@@ -235,7 +243,8 @@ Planned work:
 
 ## Adding a Language
 
-AutoOffice's UI and AI agent both run in the user's language.
+AutoOffice's UI and AI agent both run in the user's language. Arabic (`ar`) is
+included as the reference RTL locale.
 
 To add a new language (example: French):
 

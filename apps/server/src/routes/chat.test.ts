@@ -104,6 +104,12 @@ describe('POST /api/chat', () => {
     ).json();
     expect(conv.messages.length).toBeGreaterThanOrEqual(2);
     expect(conv.messages.at(-1).role).toBe('assistant');
+    expect(conv.messages.at(-1).metadata.usageCost).toMatchObject({
+      inputTokens: 1,
+      outputTokens: 1,
+      totalTokens: 2,
+      source: 'tokens-only',
+    });
   });
 
   it('returns 400 with "no model picked" when modelId is empty', async () => {

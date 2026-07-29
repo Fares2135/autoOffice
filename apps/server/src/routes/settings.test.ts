@@ -52,6 +52,14 @@ describe('settings routes', () => {
     expect(ok.status).toBe(200);
     expect((await ok.json()).locale).toBe('he');
 
+    const arabic = await app.request('/api/settings', {
+      method: 'PUT',
+      headers: { ...auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale: 'ar' }),
+    });
+    expect(arabic.status).toBe(200);
+    expect((await arabic.json()).locale).toBe('ar');
+
     const bad = await app.request('/api/settings', {
       method: 'PUT',
       headers: { ...auth, 'Content-Type': 'application/json' },

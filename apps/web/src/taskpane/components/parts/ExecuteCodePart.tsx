@@ -1,6 +1,7 @@
 import React from 'react';
 import { makeStyles, tokens, Button, Badge, Text, Tooltip } from '@fluentui/react-components';
 import { DismissCircle24Regular, Play24Regular } from '@fluentui/react-icons';
+import { useTranslation } from '../../i18n/index.ts';
 
 const useStyles = makeStyles({
   container: {
@@ -112,6 +113,13 @@ const useStyles = makeStyles({
       color: tokens.colorNeutralForegroundOnBrand,
     },
   },
+  changeSummary: {
+    padding: '10px 12px',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorBrandBackground2,
+    color: tokens.colorNeutralForeground1,
+    textAlign: 'start',
+  },
 });
 
 type CodeStatus = 'streaming' | 'pending' | 'success' | 'error';
@@ -121,13 +129,6 @@ const STATUS_COLORS: Record<CodeStatus, 'informative' | 'success' | 'danger'> = 
   pending: 'informative',
   success: 'success',
   error: 'danger',
-};
-
-const STATUS_LABELS: Record<CodeStatus, string> = {
-  streaming: 'Generating…',
-  pending: 'Awaiting Approval',
-  success: 'Success',
-  error: 'Error',
 };
 
 function statusFromState(state: string): CodeStatus {
@@ -148,7 +149,7 @@ type Props = {
   part: {
     state: string;
     toolCallId: string;
-    input?: { code?: string };
+    input?: { code?: string; summary?: string };
     output?: unknown;
     errorText?: string;
   };
@@ -159,7 +160,9 @@ type Props = {
 
 export function ExecuteCodePart({ part, onApprove, onReject, highlight }: Props) {
   const styles = useStyles();
+  const { t } = useTranslation();
   const code = part.input?.code ?? '';
+  const changeSummary = part.input?.summary?.trim();
   const status = statusFromState(part.state);
   const isError = status === 'error';
   const showResult =
@@ -178,29 +181,46 @@ export function ExecuteCodePart({ part, onApprove, onReject, highlight }: Props)
       <div className={styles.header}>
         <Text size={200} weight="semibold">office.js</Text>
         <Badge appearance="filled" color={STATUS_COLORS[status]}>
-          {STATUS_LABELS[status]}
+          {t(
+            status === 'streaming'
+              ? 'code.statusStreaming'
+              : status === 'pending'
+                ? 'code.statusPending'
+                : status === 'success'
+                  ? 'code.statusSuccess'
+                  : 'code.statusError',
+          )}
         </Badge>
       </div>
+
+      {changeSummary && (
+        <div className={styles.changeSummary} dir="auto">
+          <Text size={100} weight="semibold" block>
+            {t('code.changeSummary')}
+          </Text>
+          <Text size={200} dir="auto">{changeSummary}</Text>
+        </div>
+      )}
 
       <div className={styles.codeArea} style={{ direction: 'ltr', textAlign: 'left' }}>{highlight(code)}</div>
 
       {status === 'pending' && (
         <div className={styles.actions}>
-          <Tooltip content="Approve & Run" relationship="label" withArrow>
+          <Tooltip content={t('code.approveButton')} relationship="label" withArrow>
             <Button
               className={styles.approveBtn}
               icon={<Play24Regular />}
               size="small"
-              aria-label="Approve & Run"
+              aria-label={t('code.approveButton')}
               onClick={() => onApprove(part.toolCallId, code)}
             />
           </Tooltip>
-          <Tooltip content="Reject" relationship="label" withArrow>
+          <Tooltip content={t('code.rejectButton')} relationship="label" withArrow>
             <Button
               appearance="subtle"
               icon={<DismissCircle24Regular />}
               size="small"
-              aria-label="Reject"
+              aria-label={t('code.rejectButton')}
               onClick={() => onReject(part.toolCallId)}
             />
           </Tooltip>
@@ -213,7 +233,7 @@ export function ExecuteCodePart({ part, onApprove, onReject, highlight }: Props)
           open={isError}
         >
           <summary className={`${styles.summary} ${isError ? styles.summaryError : ''}`} style={{ direction: 'ltr', textAlign: 'left' }}>
-            {isError ? 'Error details' : 'Result'}
+            {isError ? t('code.errorDetails') : t('code.result')}
           </summary>
           <div
             className={`${styles.resultBody} ${isError ? styles.resultBodyError : ''}`}

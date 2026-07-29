@@ -5,9 +5,14 @@ import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { HistoryPanel } from './HistoryPanel';
 import * as api from '../api';
 import type { Conversation } from '@autooffice/shared';
+import { LanguageProvider } from '../i18n/index';
 
 const wrap = (ui: React.ReactElement) =>
-  render(<FluentProvider theme={webLightTheme}>{ui}</FluentProvider>);
+  render(
+    <LanguageProvider initialLocale="en">
+      <FluentProvider theme={webLightTheme}>{ui}</FluentProvider>
+    </LanguageProvider>,
+  );
 
 const sample: Conversation[] = [
   {
@@ -18,6 +23,13 @@ const sample: Conversation[] = [
     modelId: null,
     createdAt: Date.now() - 1000,
     updatedAt: Date.now() - 1000,
+    usageCost: {
+      inputTokens: 900,
+      outputTokens: 100,
+      totalTokens: 1000,
+      totalUsd: 0,
+      source: 'local-free',
+    },
   },
   {
     id: 'c2',
@@ -59,6 +71,7 @@ describe('HistoryPanel', () => {
       expect(screen.getByText('Word doc edits')).toBeInTheDocument();
     });
     expect(screen.getByText('Word slide deck')).toBeInTheDocument();
+    expect(await screen.findByText('1.0K tok')).toBeInTheDocument();
     expect(screen.queryByText('Excel chart')).not.toBeInTheDocument();
   });
 
@@ -113,7 +126,7 @@ describe('HistoryPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Word doc edits')).toBeInTheDocument();
     });
-    const renameBtns = screen.getAllByLabelText('Rename conversation');
+    const renameBtns = screen.getAllByLabelText('Rename');
     fireEvent.click(renameBtns[0]);
     expect(onSelect).not.toHaveBeenCalled();
     apiSendSpy.mockRestore();
@@ -150,7 +163,7 @@ describe('HistoryPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Word doc edits')).toBeInTheDocument();
     });
-    const deleteBtns = screen.getAllByLabelText('Delete conversation');
+    const deleteBtns = screen.getAllByLabelText('Delete');
     fireEvent.click(deleteBtns[0]);
     expect(confirmSpy).not.toHaveBeenCalled();
     await waitFor(() => {
@@ -174,7 +187,7 @@ describe('HistoryPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Word doc edits')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByLabelText('Close history'));
+    fireEvent.click(screen.getByLabelText('Close'));
     expect(onClose).toHaveBeenCalled();
   });
 });

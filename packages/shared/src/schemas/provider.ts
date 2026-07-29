@@ -9,6 +9,7 @@ export const ProviderKindSchema = z.enum([
   'deepseek',
   'openrouter',
   'ollama',
+  'lmstudio',
   'openai-compatible',
   'vercel-gateway',
   'claude-code',
@@ -18,9 +19,18 @@ export const ProviderKindSchema = z.enum([
 export type ProviderKind = z.infer<typeof ProviderKindSchema>;
 
 export const CLI_BRIDGE_KINDS: ReadonlyArray<ProviderKind> = ['claude-code', 'gemini-cli', 'opencode'];
+export const LOCAL_PROVIDER_KINDS: ReadonlyArray<ProviderKind> = ['ollama', 'lmstudio'];
 
 export function isCliBridge(kind: ProviderKind): boolean {
   return CLI_BRIDGE_KINDS.includes(kind);
+}
+
+export function isLocalProvider(kind: ProviderKind): boolean {
+  return LOCAL_PROVIDER_KINDS.includes(kind);
+}
+
+export function providerNeedsApiKey(kind: ProviderKind): boolean {
+  return !isCliBridge(kind) && !isLocalProvider(kind);
 }
 
 export const ProviderConfigSchema = z.object({

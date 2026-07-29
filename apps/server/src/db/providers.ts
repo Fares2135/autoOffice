@@ -5,7 +5,7 @@ import {
   type UpdateProviderInput,
   type ProviderConfig,
   ProviderConfigSchema,
-  isCliBridge,
+  providerNeedsApiKey,
   newId,
 } from '@autooffice/shared';
 import { isDpapiAvailable, wrapSecret, unwrapSecret } from '../secrets/dpapi';
@@ -29,7 +29,7 @@ export class ProvidersRepo {
     const now = Date.now();
     let encrypted: Uint8Array | null = null;
     if (parsed.apiKey != null) {
-      if (isCliBridge(parsed.kind)) {
+      if (!providerNeedsApiKey(parsed.kind)) {
         throw new Error(`Provider kind '${parsed.kind}' does not accept an API key`);
       }
       if (!isDpapiAvailable()) {
@@ -53,6 +53,10 @@ export class ProvidersRepo {
     const config = input.config != null ? JSON.stringify(input.config) : cur.config;
     let encrypted = cur.encrypted_key;
     if (input.apiKey != null) {
+      const kind = this.get(id)?.kind;
+      if (kind && !providerNeedsApiKey(kind)) {
+        throw new Error(`Provider kind '${kind}' does not accept an API key`);
+      }
       if (!isDpapiAvailable()) {
         throw new Error('Storing an API key requires Windows (DPAPI).');
       }

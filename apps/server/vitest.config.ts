@@ -1,6 +1,17 @@
 import { defineConfig } from 'vitest/config';
+import { readFileSync } from 'node:fs';
 
 export default defineConfig({
+  plugins: [
+    {
+      name: 'sql-as-text',
+      enforce: 'pre',
+      load(id) {
+        if (!id.endsWith('.sql')) return null;
+        return `export default ${JSON.stringify(readFileSync(id, 'utf8'))};`;
+      },
+    },
+  ],
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],

@@ -1,10 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { isCliBridge, ProviderKindSchema, ProviderConfigSchema, CreateProviderInputSchema } from './provider';
+import {
+  isCliBridge,
+  isLocalProvider,
+  providerNeedsApiKey,
+  ProviderKindSchema,
+  ProviderConfigSchema,
+  CreateProviderInputSchema,
+} from './provider';
 
 describe('ProviderKindSchema', () => {
   it('accepts known kinds', () => {
     expect(ProviderKindSchema.parse('anthropic')).toBe('anthropic');
     expect(ProviderKindSchema.parse('claude-code')).toBe('claude-code');
+    expect(ProviderKindSchema.parse('lmstudio')).toBe('lmstudio');
+  });
+
+  it('distinguishes local providers from providers that require API keys', () => {
+    expect(isLocalProvider('lmstudio')).toBe(true);
+    expect(isLocalProvider('ollama')).toBe(true);
+    expect(providerNeedsApiKey('lmstudio')).toBe(false);
+    expect(providerNeedsApiKey('ollama')).toBe(false);
+    expect(providerNeedsApiKey('openai')).toBe(true);
   });
 
   it('rejects unknown kinds', () => {

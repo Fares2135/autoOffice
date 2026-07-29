@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test as base } from '@playwright/test';
+import { test as base, type APIRequestContext } from '@playwright/test';
 
 type Fixtures = { server: { proc: ChildProcess; token: string; dataDir: string } };
 
@@ -47,6 +47,29 @@ export const test = base.extend<Fixtures>({
     { auto: true, scope: 'worker' },
   ],
 });
+
+export async function configureFakeProvider(
+  request: APIRequestContext,
+  token: string,
+): Promise<void> {
+  const headers = { Authorization: `Bearer ${token}` };
+  const existing = await request.get('/api/providers', { headers });
+  const providers = (await existing.json()) as Array<{ id: string }>;
+  let providerId = providers[0]?.id;
+  if (!providerId) {
+    const created = await request.post('/api/providers', {
+      headers,
+      data: { kind: 'lmstudio', label: 'E2E local model' },
+    });
+    if (!created.ok()) throw new Error(`could not create E2E provider: ${created.status()}`);
+    providerId = ((await created.json()) as { id: string }).id;
+  }
+  const settings = await request.put('/api/settings', {
+    headers,
+    data: { selectedProviderId: providerId, selectedModelId: 'fake-1' },
+  });
+  if (!settings.ok()) throw new Error(`could not select E2E provider: ${settings.status()}`);
+}
 
 async function waitForHealth(url: string): Promise<void> {
   for (let i = 0; i < 60; i++) {

@@ -74,6 +74,7 @@ export const KNOWN_MODELS: Record<ProviderKind, readonly string[]> = {
   ],
   openrouter: [],
   ollama: [],
+  lmstudio: [],
   'openai-compatible': [],
   'vercel-gateway': [],
 };

@@ -18,6 +18,8 @@ import {
 } from '@fluentui/react-icons';
 import { apiGet, apiSend } from '../api.ts';
 import type { Conversation, Host } from '@autooffice/shared';
+import { useFormatters, useTranslation } from '../i18n/index.ts';
+import { CostBadge } from './CostBadge.tsx';
 
 const useStyles = makeStyles({
   container: {
@@ -114,20 +116,14 @@ export interface HistoryPanelProps {
   loadConversations?: () => Promise<Conversation[]>;
 }
 
-function formatRelativeAgo(ts: number): string {
-  const diffMs = ts - Date.now();
-  const minutes = Math.round(diffMs / 60_000);
+function relativeTimeParts(ts: number): [number, Intl.RelativeTimeFormatUnit] | null {
+  const minutes = Math.round((ts - Date.now()) / 60_000);
   const absMin = Math.abs(minutes);
-  if (absMin < 1) return 'just now';
-  if (absMin < 60) return `${absMin}m ago`;
-  const hours = Math.round(absMin / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
-}
-
-function hostLabel(h: Host): string {
-  return h === 'word' ? 'Word' : h === 'excel' ? 'Excel' : 'PowerPoint';
+  if (absMin < 1) return null;
+  if (absMin < 60) return [minutes, 'minute'];
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return [hours, 'hour'];
+  return [Math.round(hours / 24), 'day'];
 }
 
 export function HistoryPanel({
@@ -138,6 +134,8 @@ export function HistoryPanel({
   loadConversations,
 }: HistoryPanelProps) {
   const styles = useStyles();
+  const { t } = useTranslation();
+  const { formatRelativeTime } = useFormatters();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,6 +165,17 @@ export function HistoryPanel({
   const filtered = (showAll ? conversations : conversations.filter((c) => c.host === currentHost))
     .slice()
     .sort((a, b) => b.updatedAt - a.updatedAt);
+  const hostLabel = (host: Host) => t(
+    host === 'word'
+      ? 'history.filterWord'
+      : host === 'excel'
+        ? 'history.filterExcel'
+        : 'history.filterPowerpoint',
+  );
+  const relativeTime = (timestamp: number) => {
+    const parts = relativeTimeParts(timestamp);
+    return parts ? formatRelativeTime(parts[0], parts[1]) : t('history.relativeNow');
+  };
 
   const startRename = (c: Conversation) => {
     setRenamingId(c.id);
@@ -201,22 +210,22 @@ export function HistoryPanel({
   };
 
   return (
-    <div className={styles.container} role="dialog" aria-label="Conversation history">
+    <div className={styles.container} role="dialog" aria-label={t('history.dialogAria')}>
       <div className={styles.header}>
         <Button
           appearance="subtle"
           icon={<Dismiss24Regular />}
           onClick={onClose}
-          aria-label="Close history"
+          aria-label={t('history.closeAria')}
         />
-        <Text weight="semibold">History</Text>
+        <Text weight="semibold">{t('history.title')}</Text>
       </div>
 
       <div className={styles.filters}>
         <Switch
           checked={showAll}
           onChange={(_, d) => setShowAll(d.checked)}
-          label="Show all hosts"
+          label={t('history.showAllHosts')}
         />
         {!showAll && (
           <Badge appearance="outline" size="small">
@@ -234,7 +243,7 @@ export function HistoryPanel({
           </div>
         ) : filtered.length === 0 ? (
           <div className={styles.empty}>
-            <Text>No conversations yet — start chatting to create one.</Text>
+            <Text>{t('history.empty')}</Text>
           </div>
         ) : (
           filtered.map((c) => {
@@ -245,7 +254,9 @@ export function HistoryPanel({
                 key={c.id}
                 role="button"
                 tabIndex={0}
-                aria-label={`Conversation: ${c.title ?? '(untitled)'}`}
+                aria-label={t('history.conversationAria', {
+                  title: c.title ?? t('history.untitled'),
+                })}
                 className={`${styles.row} ${isActive ? styles.rowActive : ''}`}
                 onClick={(e) => {
                   if (isRenaming) return;
@@ -269,16 +280,19 @@ export function HistoryPanel({
                       }}
                       onBlur={() => void commitRename()}
                       autoFocus
-                      aria-label="Rename conversation"
+                      aria-label={t('history.renameAria')}
                     />
                   ) : (
-                    <div className={styles.rowTitle}>{c.title ?? '(untitled)'}</div>
+                    <div className={styles.rowTitle} dir="auto">
+                      {c.title ?? t('history.untitled')}
+                    </div>
                   )}
                   <div className={styles.rowMeta}>
                     <Badge appearance="outline" size="small">
                       {hostLabel(c.host)}
                     </Badge>
-                    <span>Updated {formatRelativeAgo(c.updatedAt)}</span>
+                    <span>{t('history.updated', { time: relativeTime(c.updatedAt) })}</span>
+                    <CostBadge cost={c.usageCost} />
                   </div>
                 </div>
                 <div className={styles.rowActions} data-row-action="">
@@ -289,7 +303,7 @@ export function HistoryPanel({
                         size="small"
                         icon={<Checkmark20Regular />}
                         onClick={() => void commitRename()}
-                        aria-label="Save name"
+                        aria-label={t('history.saveNameAria')}
                       />
                       <Button
                         appearance="subtle"
@@ -297,7 +311,7 @@ export function HistoryPanel({
                         icon={<DismissCircle20Regular />}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={cancelRename}
-                        aria-label="Cancel rename"
+                        aria-label={t('history.cancelRenameAria')}
                       />
                     </>
                   ) : (
@@ -307,14 +321,14 @@ export function HistoryPanel({
                         size="small"
                         icon={<Edit20Regular />}
                         onClick={() => startRename(c)}
-                        aria-label="Rename conversation"
+                        aria-label={t('history.renameAria')}
                       />
                       <Button
                         appearance="subtle"
                         size="small"
                         icon={<Delete20Regular />}
                         onClick={() => void requestDelete(c.id)}
-                        aria-label="Delete conversation"
+                        aria-label={t('history.deleteAria')}
                       />
                     </>
                   )}

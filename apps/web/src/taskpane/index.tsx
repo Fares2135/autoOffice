@@ -1,14 +1,16 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { FluentProvider, webLightTheme, Text } from '@fluentui/react-components';
+import { FluentProvider, webDarkTheme, webLightTheme, Text } from '@fluentui/react-components';
 import { App } from './App.tsx';
 import { detectHost, UnsupportedHostError, type HostContext } from './host/context.ts';
 import { LanguageProvider, useDirection, useTranslation } from './i18n/index.ts';
+import { ThemeProvider, useThemeMode } from './theme/context.tsx';
 
 function Shell({ children }: { children: React.ReactNode }) {
   const dir = useDirection();
+  const { resolved } = useThemeMode();
   return (
-    <FluentProvider theme={webLightTheme} dir={dir}>
+    <FluentProvider theme={resolved === 'dark' ? webDarkTheme : webLightTheme} dir={dir}>
       {children}
     </FluentProvider>
   );
@@ -31,19 +33,23 @@ const root = createRoot(rootElement);
 
 function renderApp(host: HostContext) {
   root.render(
-    <LanguageProvider>
-      <Shell>
-        <App host={host} />
-      </Shell>
-    </LanguageProvider>,
+    <ThemeProvider>
+      <LanguageProvider>
+        <Shell>
+          <App host={host} />
+        </Shell>
+      </LanguageProvider>
+    </ThemeProvider>,
   );
 }
 
 function renderFatal(message: string) {
   root.render(
-    <LanguageProvider>
-      <FatalShell message={message} />
-    </LanguageProvider>,
+    <ThemeProvider>
+      <LanguageProvider>
+        <FatalShell message={message} />
+      </LanguageProvider>
+    </ThemeProvider>,
   );
 }
 

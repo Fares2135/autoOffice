@@ -51,5 +51,11 @@ describe('LanguageProvider + hooks', () => {
     expect(screen.getByTestId('dir').textContent).toBe('rtl');
     expect(document.documentElement.getAttribute('lang')).toBe('he');
     expect(document.documentElement.getAttribute('dir')).toBe('rtl');
+    const announcement = screen.getByRole('status');
+    expect(announcement).toHaveStyle({
+      position: 'fixed',
+      width: '1px',
+      overflow: 'hidden',
+    });
   });
 });

@@ -24,12 +24,12 @@ describe('assembleTools', () => {
   it('includes MCP tools using their fullName as key', () => {
     const t = chatTool('list_files', false);
     const out = assembleTools({ host: 'word', mcpTools: [t] });
-    expect(out['mcp_x/list_files']).toBeDefined();
+    expect(out['mcp_x_list_files']).toBeDefined();
   });
 
   it('marks ask-policy tools with needsApproval', () => {
     const t = chatTool('list_files', true);
     const out = assembleTools({ host: 'word', mcpTools: [t] });
-    expect((out['mcp_x/list_files'] as any).needsApproval).toBe(true);
+    expect((out['mcp_x_list_files'] as any).needsApproval).toBe(true);
   });
 });

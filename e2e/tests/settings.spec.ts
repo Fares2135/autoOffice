@@ -1,11 +1,11 @@
 import { expect } from '@playwright/test';
 import { test } from '../fixtures/boot-server';
 
-test('settings page lists no providers initially and accepts adding one', async ({ page, server }) => {
+test('settings page opens and accepts adding a provider', async ({ page, server }) => {
   await page.goto('/');
   // Open settings — adapt the selector to whatever the UI uses (gear icon, etc.).
-  await page.getByRole('button', { name: /settings|gear/i }).click();
-  await expect(page.getByText(/Providers/i).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByText('Provider').first()).toBeVisible();
 
   // Add a CLI-bridge provider via API directly (UI selectors may vary).
   const resp = await page.request.post('/api/providers', {

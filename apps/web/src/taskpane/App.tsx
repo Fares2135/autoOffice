@@ -20,6 +20,7 @@ import { detectLegacy } from './legacy/detect.ts';
 import { pack } from './legacy/pack.ts';
 import { LegacyImportModal } from './components/LegacyImportModal.tsx';
 import { useTranslation, isLocaleId } from './i18n/index.ts';
+import { useThemeMode } from './theme/context.tsx';
 
 const useStyles = makeStyles({
   root: {
@@ -48,6 +49,27 @@ const useStyles = makeStyles({
 
 interface AppProps {
   host: HostContext;
+}
+
+function activeConversationKey(host: HostContext['kind']): string {
+  return `autooffice.activeConversation.${host}`;
+}
+
+function loadStoredConversationId(host: HostContext['kind']): string | null {
+  try {
+    return localStorage.getItem(activeConversationKey(host));
+  } catch {
+    return null;
+  }
+}
+
+function storeConversationId(host: HostContext['kind'], id: string | null): void {
+  try {
+    if (id) localStorage.setItem(activeConversationKey(host), id);
+    else localStorage.removeItem(activeConversationKey(host));
+  } catch {
+    // Persistence in SQLite still succeeds when browser storage is unavailable.
+  }
 }
 
 export function App({ host }: AppProps) {
@@ -82,9 +104,27 @@ export function App({ host }: AppProps) {
         if (cancelled) return;
         setSettings(s);
         setProviders(p);
-        setConversationId(newId('c'));
-        setInitialMessages([]);
-        setPersisted(false);
+        const storedId = loadStoredConversationId(host.kind);
+        if (storedId) {
+          try {
+            const saved = await apiGet<{ conversation: { id: string }; messages: Message[] }>(
+              `/api/conversations/${storedId}`,
+            );
+            if (cancelled) return;
+            setConversationId(saved.conversation.id);
+            setInitialMessages(saved.messages);
+            setPersisted(true);
+          } catch {
+            storeConversationId(host.kind, null);
+            setConversationId(newId('c'));
+            setInitialMessages([]);
+            setPersisted(false);
+          }
+        } else {
+          setConversationId(newId('c'));
+          setInitialMessages([]);
+          setPersisted(false);
+        }
         setReady(true);
       } catch (err) {
         if (cancelled) return;
@@ -103,18 +143,21 @@ export function App({ host }: AppProps) {
     setConversationId(id);
     setInitialMessages(conv.messages);
     setPersisted(true);
-  }, []);
+    storeConversationId(host.kind, id);
+  }, [host.kind]);
 
   const createConversation = useCallback(() => {
     setConversationId(newId('c'));
     setInitialMessages([]);
     setPersisted(false);
-  }, []);
+    storeConversationId(host.kind, null);
+  }, [host.kind]);
 
   const ensurePersisted = useCallback(async () => {
     if (persisted || !conversationId) return;
     await apiSend('/api/conversations', { id: conversationId, host: host.kind });
     setPersisted(true);
+    storeConversationId(host.kind, conversationId);
   }, [persisted, conversationId, host.kind]);
 
   const refreshSettings = useCallback(async () => {
@@ -134,11 +177,15 @@ export function App({ host }: AppProps) {
   // Keying on activeLocale would compare a fresh provider locale against a
   // stale server locale and revert the user's choice until the drawer closes.
   const { setLocale } = useTranslation();
+  const { setMode: setThemeMode } = useThemeMode();
   useEffect(() => {
     const next = settings?.locale;
     if (!next || !isLocaleId(next)) return;
     void setLocale(next);
   }, [settings?.locale, setLocale]);
+  useEffect(() => {
+    if (settings?.theme) setThemeMode(settings.theme);
+  }, [settings?.theme, setThemeMode]);
 
   if (error) {
     return (

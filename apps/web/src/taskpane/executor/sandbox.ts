@@ -1,4 +1,3 @@
-// src/taskpane/executor/sandbox.ts
 import type { HostKind } from '../host/context.ts';
 
 export interface ExecutionResult {
@@ -17,90 +16,158 @@ export interface ExecutionResult {
   };
 }
 
-const NS: Record<HostKind, 'Word' | 'Excel' | 'PowerPoint'> = {
-  word: 'Word',
-  excel: 'Excel',
-  powerpoint: 'PowerPoint',
+type PendingExecution = {
+  resolve: (result: ExecutionResult) => void;
+  timer: ReturnType<typeof setTimeout>;
 };
 
-const formatArg = (a: unknown): string => {
-  if (typeof a === 'string') return a;
-  if (a instanceof Error) return a.stack || a.message;
-  try {
-    return JSON.stringify(a);
-  } catch {
-    return String(a);
-  }
-};
+const READY_TIMEOUT_MS = 10_000;
 
-const makeCapturingConsole = (logs: string[]) => ({
-  log:   (...args: unknown[]) => logs.push(args.map(formatArg).join(' ')),
-  info:  (...args: unknown[]) => logs.push('[info] '  + args.map(formatArg).join(' ')),
-  warn:  (...args: unknown[]) => logs.push('[warn] '  + args.map(formatArg).join(' ')),
-  error: (...args: unknown[]) => logs.push('[error] ' + args.map(formatArg).join(' ')),
-  debug: (...args: unknown[]) => logs.push('[debug] ' + args.map(formatArg).join(' ')),
-});
-
+/**
+ * Runs generated Office.js in a sandboxed, opaque-origin iframe.
+ *
+ * The iframe deliberately has `allow-scripts` but not `allow-same-origin`, so
+ * generated code cannot read the task pane's DOM, localStorage, bearer token,
+ * or other application state. Communication is restricted to an authenticated
+ * MessageChannel-like exchange: responses are accepted only from the current
+ * iframe window and for an outstanding random request id.
+ */
 export class Sandbox {
+  private iframe: HTMLIFrameElement | null = null;
+  private readyPromise: Promise<void> | null = null;
+  private resolveReady: (() => void) | null = null;
+  private readyTimer: ReturnType<typeof setTimeout> | null = null;
+  private pending = new Map<string, PendingExecution>();
+  private listening = false;
+
   constructor(private readonly host: HostKind) {}
 
-  init(): void {}
-  destroy(): void {}
+  init(): void {
+    if (!this.listening) {
+      window.addEventListener('message', this.handleMessage);
+      this.listening = true;
+    }
+    if (!this.iframe) this.createFrame();
+  }
 
-  async execute(code: string, timeout: number = 30000): Promise<ExecutionResult> {
-    const ns = NS[this.host];
-    const otherNamespaces = Object.values(NS).filter((n) => n !== ns);
-    const trimmed = code.trim();
+  destroy(): void {
+    this.failPending('Execution sandbox was closed.');
+    this.clearReadyTimer();
+    this.resolveReady = null;
+    this.readyPromise = null;
+    this.iframe?.remove();
+    this.iframe = null;
+    if (this.listening) {
+      window.removeEventListener('message', this.handleMessage);
+      this.listening = false;
+    }
+  }
 
-    // Reject code targeting the wrong host before running it. Yields a clear
-    // error the agent can self-heal on, instead of an opaque "X is not defined".
-    for (const other of otherNamespaces) {
-      if (trimmed.startsWith(`${other}.run`)) {
-        return {
-          success: false,
-          error: `Code uses ${other}.run but the add-in is running in ${ns}. Rewrite using ${ns}.run.`,
-          logs: [],
-        };
-      }
+  async execute(code: string, timeout = 30_000): Promise<ExecutionResult> {
+    if (!code.trim()) {
+      return { success: false, error: 'No Office.js code was provided.', logs: [] };
+    }
+    this.init();
+
+    try {
+      await this.readyPromise;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        logs: [],
+      };
     }
 
-    const isWrapped = trimmed.startsWith(`${ns}.run`);
-    const execCode = isWrapped
-      ? `return (${trimmed.replace(/;+\s*$/, '')});`
-      : `return ${ns}.run(async function(context) {\n${code}\n});`;
+    const frameWindow = this.iframe?.contentWindow;
+    if (!frameWindow) {
+      return { success: false, error: 'Execution sandbox is unavailable.', logs: [] };
+    }
 
-    const logs: string[] = [];
-    const capturingConsole = makeCapturingConsole(logs);
+    const id = crypto.randomUUID();
+    return new Promise<ExecutionResult>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        resolve({
+          success: false,
+          error: `Execution timed out after ${timeout}ms and the sandbox was reset.`,
+          logs: [],
+        });
+        this.resetFrame('Execution sandbox was reset after a timeout.');
+      }, timeout);
 
-    const timeoutPromise = new Promise<ExecutionResult>((resolve) =>
-      setTimeout(
-        () => resolve({ success: false, error: `Execution timed out after ${timeout}ms`, logs }),
-        timeout
-      )
-    );
-
-    const executionPromise = (async (): Promise<ExecutionResult> => {
-      try {
-        const fn = new Function('console', execCode);
-        const result = await fn(capturingConsole);
-        return { success: true, output: result, logs };
-      } catch (err) {
-        const e = err as Error & { code?: string; debugInfo?: ExecutionResult['debugInfo'] };
-        const isOfficeError = typeof e.code === 'string' && e.debugInfo !== undefined;
-        if (isOfficeError) {
-          const dbg = e.debugInfo!;
-          return {
-            success: false,
-            error: `${e.code}: ${e.message || dbg.message || ''}`.trim(),
-            stack: e.stack,
-            debugInfo: { code: e.code, ...dbg },
-            logs,
-          };
-        }
-        return { success: false, error: e.message || String(err), stack: e.stack, logs };
-      }
-    })();
-
-    return Promise.race([executionPromise, timeoutPromise]);
+      this.pending.set(id, { resolve, timer });
+      frameWindow.postMessage({ type: 'execute', id, code, host: this.host }, '*');
+    });
   }
+
+  private createFrame(): void {
+    const iframe = document.createElement('iframe');
+    iframe.hidden = true;
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.setAttribute('sandbox', 'allow-scripts');
+    iframe.setAttribute('referrerpolicy', 'no-referrer');
+    iframe.src = new URL(`${import.meta.env.BASE_URL}iframe.html`, window.location.origin).toString();
+
+    this.readyPromise = new Promise<void>((resolve, reject) => {
+      this.resolveReady = resolve;
+      this.readyTimer = setTimeout(() => {
+        this.resolveReady = null;
+        reject(new Error('Execution sandbox did not become ready.'));
+      }, READY_TIMEOUT_MS);
+    });
+
+    this.iframe = iframe;
+    document.body.appendChild(iframe);
+  }
+
+  private resetFrame(reason: string): void {
+    this.failPending(reason);
+    this.clearReadyTimer();
+    this.resolveReady = null;
+    this.readyPromise = null;
+    this.iframe?.remove();
+    this.iframe = null;
+    this.createFrame();
+  }
+
+  private failPending(reason: string): void {
+    for (const { resolve, timer } of this.pending.values()) {
+      clearTimeout(timer);
+      resolve({ success: false, error: reason, logs: [] });
+    }
+    this.pending.clear();
+  }
+
+  private clearReadyTimer(): void {
+    if (this.readyTimer) clearTimeout(this.readyTimer);
+    this.readyTimer = null;
+  }
+
+  private handleMessage = (event: MessageEvent): void => {
+    if (!this.iframe || event.source !== this.iframe.contentWindow) return;
+    const data = event.data as Partial<ExecutionResult> & { type?: string; id?: string };
+
+    if (data?.type === 'sandbox-ready') {
+      this.clearReadyTimer();
+      this.resolveReady?.();
+      this.resolveReady = null;
+      return;
+    }
+
+    if ((data?.type !== 'result' && data?.type !== 'error') || !data.id) return;
+    const pending = this.pending.get(data.id);
+    if (!pending) return;
+
+    clearTimeout(pending.timer);
+    this.pending.delete(data.id);
+    pending.resolve({
+      success: data.type === 'result' && data.success === true,
+      output: data.output,
+      error: data.error,
+      stack: data.stack,
+      logs: Array.isArray(data.logs) ? data.logs : [],
+      debugInfo: data.debugInfo,
+    });
+  };
 }
