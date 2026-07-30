@@ -3,6 +3,7 @@ import {
   changedProps,
   unrestorableProps,
   capGrid,
+  locateGrid,
   getLastSnapshot,
   setSnapshot,
   clearSnapshot,
@@ -119,5 +120,30 @@ describe('restoreFormatting guards', () => {
     setSnapshot({ takenAt: 1, paragraphs: [], skippedReason: 'document has 5000 paragraphs, over the 1000 limit' });
     const result = await restoreFormatting('word');
     expect((result as { error: string }).error).toMatch(/over the 1000 limit/);
+  });
+});
+
+// Every reader of a table needs to know which table it is looking at, and the
+// selection reader used to answer that with Table.values — which collapses
+// nested tables, so it labelled every table 0.
+describe('locateGrid', () => {
+  const a = [['A', 'B'], ['1', '2']];
+  const b = [['X', 'Y'], ['3', '4']];
+
+  it('finds the table by its contents', () => {
+    expect(locateGrid([a, b], b)).toEqual({ index: 1 });
+  });
+
+  it('reports candidates rather than picking one when two tables match', () => {
+    expect(locateGrid([a, b, a], a)).toEqual({ index: null, candidates: [0, 2] });
+  });
+
+  it('returns no index and no candidates when nothing matches', () => {
+    expect(locateGrid([a], b)).toEqual({ index: null });
+  });
+
+  it('does not confuse tables that differ only in one cell', () => {
+    const near = [['A', 'B'], ['1', '3']];
+    expect(locateGrid([a, near], near)).toEqual({ index: 1 });
   });
 });

@@ -36,7 +36,10 @@ describe('preview', () => {
   });
 });
 
-import { nearestHeading, resolveIndexes, formatSelection, isPartialSelection } from './inspect.ts';
+import {
+  nearestHeading, resolveIndexes, formatSelection, isPartialSelection,
+  formatSelectionTable, summariseCells, ptToIn, type SelectionTable,
+} from './inspect.ts';
 
 describe('nearestHeading', () => {
   const doc = [
@@ -108,9 +111,10 @@ describe('formatSelection', () => {
       .toContain('cursor position, nothing selected');
   });
 
-  it('names the table, row and cell for "this column" style requests', () => {
-    expect(formatSelection({ ...base, table: { index: 1, row: 2, cell: 0 } }))
-      .toContain('inside table 1, row 2, cell 0');
+  it('names the table and the cells for "this column" style requests', () => {
+    const text = formatSelection({ ...base, table: tbl({ index: 1, cells: [{ row: 2, column: 0 }] }) })!;
+    expect(text).toContain('inside table 1');
+    expect(text).toContain('row(s) 2 × column(s) 0');
   });
 
   it('names the enclosing heading for "this section"', () => {
@@ -177,13 +181,101 @@ describe('formatSelection — partial selections and live formatting', () => {
 
   it('reports an ambiguous table index instead of naming the wrong table', () => {
     const text = formatSelection({
-      ...base, table: { index: null, candidates: [0, 2], row: 1, cell: 0 },
+      ...base, table: tbl({ index: null, candidates: [0, 2], cells: [{ row: 1, column: 0 }] }),
     })!;
     expect(text).toMatch(/index ambiguous, candidates: 0, 2/);
   });
 
   it('says the index is unknown when it cannot be matched at all', () => {
-    const text = formatSelection({ ...base, table: { index: null, row: null, cell: null } })!;
+    const text = formatSelection({ ...base, table: tbl({ index: null }) })!;
     expect(text).toContain('table (index unknown)');
+  });
+});
+
+/** A SelectionTable with the boring fields filled in. */
+function tbl(over: Partial<SelectionTable> & { index: number | null }): SelectionTable {
+  const cells = over.cells ?? [];
+  return {
+    rows: 7,
+    columns: 6,
+    row: cells[0]?.row ?? null,
+    cell: cells[0]?.column ?? null,
+    cells,
+    ...summariseCells(cells, over.rows ?? 7),
+    columnWidthsPt: null,
+    ...over,
+  };
+}
+
+describe('summariseCells', () => {
+  it('folds the covered cells into distinct rows and columns', () => {
+    const cells = [
+      { row: 0, column: 1 }, { row: 0, column: 2 },
+      { row: 1, column: 1 }, { row: 1, column: 2 },
+    ];
+    expect(summariseCells(cells, 2)).toEqual({
+      selectedRows: [0, 1], selectedColumns: [1, 2], wholeColumns: true,
+    });
+  });
+
+  it('sorts ascending however the cells arrived', () => {
+    const cells = [{ row: 2, column: 5 }, { row: 0, column: 1 }, { row: 2, column: 1 }];
+    expect(summariseCells(cells, 5).selectedColumns).toEqual([1, 5]);
+    expect(summariseCells(cells, 5).selectedRows).toEqual([0, 2]);
+  });
+
+  it('is not whole columns when only some rows are covered', () => {
+    expect(summariseCells([{ row: 0, column: 0 }], 7).wholeColumns).toBe(false);
+  });
+
+  it('handles no cells at all', () => {
+    expect(summariseCells([], 3)).toEqual({ selectedRows: [], selectedColumns: [], wholeColumns: false });
+  });
+});
+
+// The reported failure: five cells selected across a row, and the model could
+// not tell which columns they were, so it counted letters in the selected text
+// and guessed five adjacent columns starting from the first cell.
+describe('formatSelectionTable — "change these columns to 0.6\\""', () => {
+  const selected = [1, 2, 3, 4, 5].flatMap((column) =>
+    [0, 1, 2, 3, 4, 5, 6].map((row) => ({ row, column })),
+  );
+  const table = tbl({ index: 2, cells: selected, columnWidthsPt: [86.4, 64.8, 64.8, 64.8, 64.8, 64.8] });
+
+  it('names the table index without another lookup', () => {
+    expect(formatSelectionTable(table)).toContain('inside table 2');
+  });
+
+  it('lists the selected columns, so nothing has to be inferred from the text', () => {
+    expect(formatSelectionTable(table)).toContain('COLUMN(S) 1, 2, 3, 4, 5');
+  });
+
+  it('says the columns are covered in full', () => {
+    expect(formatSelectionTable(table)).toContain('all 7 rows');
+  });
+
+  it('gives the current widths in inches as well as points', () => {
+    const text = formatSelectionTable(table);
+    expect(text).toContain('col 0: 1.2"');
+    expect(text).toContain('86.4pt');
+  });
+
+  it('reports the grid size', () => {
+    expect(formatSelectionTable(table)).toContain('7 rows × 6 columns');
+  });
+
+  it('tells the model to apply partial selections to whole columns', () => {
+    const partial = tbl({
+      index: 2,
+      cells: [{ row: 3, column: 1 }, { row: 3, column: 2 }],
+    });
+    expect(formatSelectionTable(partial)).toContain('apply to every row');
+  });
+});
+
+describe('ptToIn', () => {
+  it('converts points to inches at two decimals', () => {
+    expect(ptToIn(43.2)).toBe(0.6);
+    expect(ptToIn(72)).toBe(1);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { lintCode, formatWarnings, hasScopeWarning } from './lint.ts';
+import { lintCode, formatWarnings, hasScopeWarning, noOpNote, looksLikeTextWrite } from './lint.ts';
 
 const ids = (code: string, host: 'word' | 'excel' | 'powerpoint' = 'word') =>
   lintCode(code, host).map((w) => w.id);
@@ -214,5 +214,88 @@ describe('lintCode — the silent paragraph destroyer', () => {
   it('does not flag an append after a match', () => {
     expect(ids('const m = t.match(/x/); body.insertParagraph(m[0], Word.InsertLocation.end);'))
       .not.toContain('paragraph-replace-with-fragment');
+  });
+});
+
+// Straight out of the failed transcript: five scripts, each "successful", none
+// of which could have worked — Word.Table simply has no columns collection.
+describe('the APIs the column-width task invented', () => {
+  it('flags table.columns.items', () => {
+    expect(ids('const t = sel.parentTableCell.parentRow.parentTable; console.log(t.columns.items.length);'))
+      .toContain('table-columns-collection');
+  });
+
+  it('flags loading columns/items', () => {
+    expect(ids('table.load("columns/items"); await context.sync();'))
+      .toContain('table-columns-collection');
+  });
+
+  it('flags writing through the non-existent collection', () => {
+    const w = lintCode('table.columns.items[c].width = 43.2; await context.sync();', 'word');
+    expect(w.map(x => x.id)).toContain('table-columns-collection');
+    expect(w.find(x => x.id === 'table-columns-collection')!.message).toContain('set_column_width');
+  });
+
+  it('does not flag the pattern that works', () => {
+    expect(ids('for (const row of table.rows.items) row.cells.items[1].columnWidth = 43.2; await context.sync();'))
+      .not.toContain('table-columns-collection');
+  });
+
+  it('flags asking a multi-cell selection for its single parent cell', () => {
+    const w = lintCode(
+      'const sel = context.document.getSelection();\nconst cell = sel.parentTableCellOrNullObject;\ncell.load("rowIndex");',
+      'word',
+    );
+    expect(w.map(x => x.id)).toContain('selection-parent-cell-single');
+    expect(w.find(x => x.id === 'selection-parent-cell-single')!.message).toContain('read_selection');
+  });
+
+  it('does not flag a paragraph asking for its own cell, which is the right way', () => {
+    expect(ids('const cell = paragraphs.items[3].parentTableCellOrNullObject; cell.load("rowIndex");'))
+      .not.toContain('selection-parent-cell-single');
+  });
+});
+
+describe('noOpNote', () => {
+  const write = 'p.insertText("x", Word.InsertLocation.replace); await context.sync();';
+
+  it('warns when a text write left the text identical', () => {
+    const note = noOpNote(write, undefined, true);
+    expect(note).toContain('did nothing');
+    expect(note).toContain('Do not report success');
+  });
+
+  it('stays quiet when the text did change', () => {
+    expect(noOpNote(write, undefined, false)).toBe('');
+  });
+
+  it('stays quiet for a formatting-only script, which legitimately changes no text', () => {
+    expect(noOpNote('range.font.bold = true; await context.sync();', undefined, true)).toBe('');
+  });
+
+  it('stays quiet for a script that returned data — that was a read', () => {
+    expect(noOpNote(write, { rows: 3 }, true)).toBe('');
+  });
+
+  it('stays quiet for a script that logged', () => {
+    expect(noOpNote(write, undefined, true, ['Table index: 2'])).toBe('');
+  });
+
+  it('does not treat document text mentioning insertText as a write', () => {
+    expect(noOpNote('return "call insertText to replace";', undefined, true)).toBe('');
+  });
+});
+
+describe('looksLikeTextWrite', () => {
+  it('spots value assignment on a cell', () => {
+    expect(looksLikeTextWrite('cell.value = "0.6";')).toBe(true);
+  });
+
+  it('does not count a comparison as a write', () => {
+    expect(looksLikeTextWrite('if (cell.value === "x") {}')).toBe(false);
+  });
+
+  it('does not count a width change as a text write', () => {
+    expect(looksLikeTextWrite('cell.columnWidth = 43.2;')).toBe(false);
   });
 });

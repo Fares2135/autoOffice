@@ -131,7 +131,7 @@ export function lintCode(code: string, host: HostKind): CodeWarning[] {
   // APIs that do not exist, and silent no-ops. Every one of these was observed
   // costing a real turn: the model writes it, the call throws or quietly does
   // nothing, and the user waits through another round trip.
-  const API_RULES: Array<{ id: string; test: RegExp; message: string }> = [
+  const API_RULES: Array<{ id: string; test: RegExp; message: string; wordOnly?: true }> = [
     {
       id: 'cell-width-readonly',
       test: /\.\s*(cells\s*\.\s*items\s*\[[^\]]*\]|cell)\s*\.\s*width\s*=|cells\s*\.\s*items\s*\[[^\]]*\]\s*\.\s*width\s*=/,
@@ -141,6 +141,26 @@ export function lintCode(code: string, host: HostKind): CodeWarning[] {
       id: 'table-column-count',
       test: /\btable[\w.]*\s*\.\s*columnCount\b|items\/columnCount/,
       message: 'Word.Table has no columnCount. Take the column count from rows.items[0].cells.items.length.',
+    },
+    {
+      id: 'table-columns-collection',
+      // Any `.columns` at all: in Word nothing has one. Excel tables do, hence
+      // wordOnly. The variable holding the table is often a one-letter name, so
+      // anchoring on "table" missed the real cases.
+      test: /\.\s*columns\b|columns\s*\/\s*items/,
+      wordOnly: true,
+      message:
+        'Word.Table has no columns collection — table.columns is undefined, so reading ' +
+        'table.columns.items throws and looping it does nothing. Columns exist only as the cells at ' +
+        'that index in each row. To resize, use the set_column_width tool.',
+    },
+    {
+      id: 'selection-parent-cell-single',
+      test: /getSelection\s*\(\s*\)[\s\S]{0,200}?parentTableCell/,
+      message:
+        'A selection spanning more than one cell has no single parentTableCell — it comes back as a ' +
+        'null object, and the first cell is not the answer either. The selection note already lists ' +
+        'every selected cell, row and column; read_selection returns them too.',
     },
     {
       id: 'paragraphs-get-item-at',
@@ -166,8 +186,9 @@ export function lintCode(code: string, host: HostKind): CodeWarning[] {
       message: 'Table.values collapses nested or merged tables into one string. Load rows/items/cells/items/value, or call read_table.',
     },
   ];
-  const STRING_AWARE = new Set(['table-column-count', 'table-values-nested']);
+  const STRING_AWARE = new Set(['table-column-count', 'table-values-nested', 'table-columns-collection']);
   for (const rule of API_RULES) {
+    if (rule.wordOnly && host !== 'word') continue;
     const target = STRING_AWARE.has(rule.id) ? srcWithStrings : src;
     if (rule.test.test(target)) {
       warnings.push({ severity: 'correctness', id: rule.id, message: rule.message });
@@ -183,6 +204,40 @@ export function lintCode(code: string, host: HostKind): CodeWarning[] {
   }
 
   return warnings;
+}
+
+/** Text-writing calls, as opposed to formatting ones. Used by the no-op check. */
+const TEXT_WRITE =
+  /\.\s*(insertText|insertParagraph|insertHtml|insertOoxml|insertTable|insertBreak|clear|delete)\s*\(|\.\s*(value|values|text)\s*=[^=]/;
+
+/** True when the code sets out to change document text. */
+export function looksLikeTextWrite(code: string): boolean {
+  return TEXT_WRITE.test(stripped(code));
+}
+
+/**
+ * The warning for a script that ran, reported success, and changed nothing.
+ *
+ * Observed repeatedly: office.js accepts a write to a read-only property, or to
+ * a proxy that was never the object the model thought it was, and reports
+ * success. The model then tells the user the task is done. Saying "nothing
+ * changed" out loud turns a silent wrong answer into a fixable one.
+ */
+export function noOpNote(
+  code: string,
+  output: unknown,
+  textUnchanged: boolean,
+  logs?: string[],
+): string {
+  if (!textUnchanged || !looksLikeTextWrite(code)) return '';
+  // A script that returned data or logged was probably reading, not writing.
+  if (output !== undefined || (logs && logs.length > 0)) return '';
+  return (
+    'WARNING: this script meant to change text but the document text is identical. ' +
+    'It did nothing. Do not report success — office.js reports success for writes it ignores ' +
+    '(assigning a read-only property, or writing to a proxy that is not the object you meant). ' +
+    'Check your assumption about the target before trying anything else.'
+  );
 }
 
 /** One line per warning, for the model's tool result. */

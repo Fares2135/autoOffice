@@ -6,6 +6,7 @@
 import type { HostKind } from '../host/context.ts';
 import { officeProbe, type SetProbe } from '../agent/capabilities.ts';
 import { escapeInvisible } from './replace.ts';
+import { gridOf, widthsOf, locateGrid, loadGrids } from './formatting.ts';
 
 const MAX_HEADINGS = 40;
 const MAX_STYLES = 20;
@@ -327,12 +328,54 @@ export interface SelectionContext {
   rtl: boolean;
   /** Nearest heading at or above the selection — what the user means by "this section". */
   section: { paragraph: number; style: string; text: string } | null;
-  table: {
-    index: number | null;
-    candidates?: number[];
-    row: number | null;
-    cell: number | null;
-  } | null;
+  table: SelectionTable | null;
+}
+
+/**
+ * The table the selection is in, and — crucially — WHICH cells of it.
+ *
+ * A selection across five cells has no single parentTableCell: the range's
+ * parentTableCellOrNullObject comes back null, which is why "change these
+ * columns" used to leave the model guessing a column count from the text. Every
+ * selected paragraph does have a parent cell, so the covered cells are read
+ * from those.
+ */
+export interface SelectionTable {
+  index: number | null;
+  candidates?: number[];
+  rows: number;
+  columns: number;
+  /** First selected cell, kept for the older row/cell readers. */
+  row: number | null;
+  cell: number | null;
+  /** Every cell the selection covers, as row/column pairs. */
+  cells: Array<{ row: number; column: number }>;
+  /** Distinct rows and columns those cells span, ascending. */
+  selectedRows: number[];
+  selectedColumns: number[];
+  /** True when the selection covers every row of its columns — i.e. whole columns. */
+  wholeColumns: boolean;
+  /** Current width of every column, in points. 72pt = 1 inch. */
+  columnWidthsPt: number[] | null;
+}
+
+/** Pure: fold the selected cells into rows, columns and a whole-column verdict. */
+export function summariseCells(
+  cells: Array<{ row: number; column: number }>,
+  rowCount: number,
+): { selectedRows: number[]; selectedColumns: number[]; wholeColumns: boolean } {
+  const selectedRows = [...new Set(cells.map((c) => c.row))].sort((a, b) => a - b);
+  const selectedColumns = [...new Set(cells.map((c) => c.column))].sort((a, b) => a - b);
+  return {
+    selectedRows,
+    selectedColumns,
+    wholeColumns: rowCount > 0 && selectedRows.length === rowCount,
+  };
+}
+
+/** Pure: "0.6\"" reads better than "43.2pt" when the user thinks in inches. */
+export function ptToIn(pt: number): number {
+  return Math.round((pt / 72) * 100) / 100;
 }
 
 /** Pure: nearest heading at or above `index`, i.e. the section the user is in. */
@@ -382,6 +425,43 @@ export function isPartialSelection(selectedText: string, paragraphText: string):
   return a !== b && b.includes(a);
 }
 
+/**
+ * Pure: the table half of the selection note.
+ *
+ * Names the exact cells, columns and current widths. "inside table 3" was not
+ * enough: the model still had to work out which columns the user meant, and it
+ * guessed the count from the selected text.
+ */
+export function formatSelectionTable(t: SelectionTable): string {
+  const which = t.index !== null
+    ? `table ${t.index}`
+    : t.candidates?.length
+      ? `a table (index ambiguous, candidates: ${t.candidates.join(', ')})`
+      : 'a table (index unknown)';
+  const parts = [`inside ${which} (${t.rows} rows × ${t.columns} columns)`];
+
+  if (t.selectedColumns.length > 0) {
+    const cols = t.selectedColumns.join(', ');
+    parts.push(
+      t.wholeColumns
+        ? `selection covers COLUMN(S) ${cols} in full (all ${t.rows} rows)`
+        : `selected cells: row(s) ${t.selectedRows.join(', ')} × column(s) ${cols}`,
+    );
+    if (!t.wholeColumns && t.selectedColumns.length > 1) {
+      parts.push(
+        `"these columns" means column(s) ${cols} — apply to every row of them, not only the selected rows`,
+      );
+    }
+  }
+  if (t.columnWidthsPt) {
+    const widths = t.columnWidthsPt
+      .map((pt, i) => `col ${i}: ${ptToIn(pt)}" (${Math.round(pt * 10) / 10}pt)`)
+      .join(', ');
+    parts.push(`current column widths — ${widths}`);
+  }
+  return parts.join('; ');
+}
+
 /** Pure: renders the selection for the model, or null when there is nothing useful to say. */
 export function formatSelection(sel: SelectionContext | null): string | null {
   if (!sel) return null;
@@ -411,17 +491,7 @@ export function formatSelection(sel: SelectionContext | null): string | null {
   if (sel.style) parts.push(`style: ${sel.style}`);
   if (sel.alignment) parts.push(`alignment: ${sel.alignment}`);
   if (sel.isListItem) parts.push('inside a list');
-  if (sel.table) {
-    const which = sel.table.index !== null
-      ? `table ${sel.table.index}`
-      : sel.table.candidates?.length
-        ? `a table (index ambiguous, candidates: ${sel.table.candidates.join(', ')})`
-        : 'a table (index unknown)';
-    const where = sel.table.row !== null && sel.table.cell !== null
-      ? `${which}, row ${sel.table.row}, cell ${sel.table.cell}`
-      : which;
-    parts.push(`inside ${where}`);
-  }
+  if (sel.table) parts.push(formatSelectionTable(sel.table));
   if (sel.section) parts.push(`under heading ${sel.section.paragraph} "${sel.section.text}"`);
   if (sel.rtl) parts.push('contains right-to-left script');
   return parts.join('; ');
@@ -492,27 +562,46 @@ export async function getSelection(host: HostKind): Promise<SelectionContext | n
     const table = await Word.run(async (context) => {
       const range = context.document.getSelection();
       const parent = range.parentTableOrNullObject;
-      parent.load('isNullObject,values,rowCount');
-      const cell = range.parentTableCellOrNullObject;
-      cell.load('isNullObject,rowIndex,cellIndex');
-      const tables = context.document.body.tables;
-      tables.load('items/values');
+      parent.load('isNullObject,rowCount');
+      parent.load('rows/items/cells/items/value,rows/items/cells/items/columnWidth');
+
+      // Each selected paragraph, so its own cell can be asked for. The range's
+      // parentTableCell is null whenever the selection spans more than one cell
+      // — which is exactly the case that matters for "these columns".
+      const selected = range.paragraphs;
+      selected.load('items');
       await context.sync();
 
       if (parent.isNullObject) return null;
-      // Proxy objects are never identity-equal, so match on content and report
-      // ambiguity rather than mislabelling the table.
-      const key = JSON.stringify(parent.values ?? []);
-      const matches = tables.items
-        .map((t, i) => ({ i, key: JSON.stringify(t.values ?? []) }))
-        .filter((t) => t.key === key)
-        .map((t) => t.i);
+
+      const cells = selected.items.map((p) => {
+        const c = p.parentTableCellOrNullObject;
+        c.load('isNullObject,rowIndex,cellIndex');
+        return c;
+      });
+      const grids = await loadGrids(context);
+      await context.sync();
+
+      const grid = gridOf(parent);
+      const located = locateGrid(grids, grid);
+      // cellIndex is the position within its row, which is what
+      // rows.items[r].cells.items[i] indexes. With merged cells that is not the
+      // visual column number, and no API exposes the visual one.
+      const covered = cells
+        .filter((c) => !c.isNullObject)
+        .map((c) => ({ row: c.rowIndex, column: c.cellIndex }));
+      const spans = summariseCells(covered, parent.rowCount);
+
       return {
-        index: matches.length === 1 ? matches[0] : null,
-        candidates: matches.length > 1 ? matches : undefined,
-        row: cell.isNullObject ? null : cell.rowIndex,
-        cell: cell.isNullObject ? null : cell.cellIndex,
-      };
+        ...located,
+        rows: parent.rowCount,
+        columns: grid[0]?.length ?? 0,
+        row: covered[0]?.row ?? null,
+        cell: covered[0]?.column ?? null,
+        cells: covered,
+        ...spans,
+        columnWidthsPt: widthsOf(parent),
+      } satisfies SelectionTable;
     });
     if (table) base.table = table;
   } catch {
