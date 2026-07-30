@@ -153,6 +153,14 @@ export function lintCode(code: string, host: HostKind): CodeWarning[] {
       message: 'Word.Table has no getBeforeOrNullObject()/getAfterOrNullObject(). Index body.tables.items instead.',
     },
     {
+      id: 'paragraph-replace-with-fragment',
+      test: /\.\s*match\s*\([\s\S]{0,400}?insertText\s*\([^)]*(replace|Replace)/,
+      message:
+        'Replacing a whole paragraph with a fragment matched from it deletes everything else in ' +
+        'that paragraph — index paragraphs often hold many tab-separated entries. Use the ' +
+        'replace_text tool, or search inside the paragraph and replace that range.',
+    },
+    {
       id: 'table-values-nested',
       test: /\btables?\s*[\w.]*\s*\.\s*load\s*\(\s*['"`][^'"`]*\bvalues\b/,
       message: 'Table.values collapses nested or merged tables into one string. Load rows/items/cells/items/value, or call read_table.',

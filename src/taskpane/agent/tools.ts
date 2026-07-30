@@ -6,6 +6,7 @@ import {
   readComments, readTrackedChanges, readHeadersFooters, getSelection,
 } from '../executor/inspect.ts';
 import { getFormatting, getStyles, readTable, restoreFormatting, tableForParagraph } from '../executor/formatting.ts';
+import { planInDocument, applyReplacements, formatPlan } from '../executor/replace.ts';
 import type { HostKind } from '../host/context.ts';
 
 const hostName = (host: HostKind) =>
@@ -355,6 +356,76 @@ export function makeTableForParagraphTool(host: HostKind) {
         return JSON.stringify(await tableForParagraph(host, paragraph), null, 2);
       } catch (err) {
         return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+/**
+ * Bulk find and replace, with a mandatory look before the leap.
+ *
+ * dryRun returns exactly what would change and touches nothing. Applying skips
+ * — rather than rewrites — any paragraph whose sub-range cannot be isolated,
+ * because rewriting a paragraph to replace a fragment of it deletes everything
+ * else in that paragraph.
+ */
+export function makeReplaceTextTool(
+  host: HostKind,
+  requestApproval: (summary: string) => Promise<boolean>,
+) {
+  return tool({
+    description:
+      'Find and replace text across the document, or within specific paragraphs. ' +
+      'Use this instead of writing a replace script: it matches through invisible bidi marks ' +
+      '(so Arabic/Latin text like "Module 26 <RLM>| ..." matches), replaces each match ' +
+      'individually so other entries in the same paragraph survive, and never rewrites a whole ' +
+      'paragraph to replace a fragment of it. ' +
+      'ALWAYS call it once with dryRun true first, show the user what would change, then call it ' +
+      'again with dryRun false. ' +
+      'Set regex true for patterns; $1 references work in the replacement.',
+    inputSchema: jsonSchema<{
+      find: string;
+      replaceWith: string;
+      regex?: boolean;
+      matchCase?: boolean;
+      paragraphs?: number[];
+      dryRun?: boolean;
+    }>({
+      type: 'object',
+      properties: {
+        find: { type: 'string', description: 'Text or regex to find' },
+        replaceWith: { type: 'string', description: 'Replacement. With regex true, $1 etc. work.' },
+        regex: { type: 'boolean', description: 'Treat find as a regular expression (default false)' },
+        matchCase: { type: 'boolean', description: 'Case-sensitive (default false)' },
+        paragraphs: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Restrict to these paragraph indexes. Omit for the whole document.',
+        },
+        dryRun: { type: 'boolean', description: 'Preview only, change nothing (default false)' },
+      },
+      required: ['find', 'replaceWith'],
+      additionalProperties: false,
+    }),
+    execute: async ({ find, replaceWith, regex, matchCase, paragraphs, dryRun }) => {
+      try {
+        const opts = { regex, matchCase, paragraphs };
+        const { plans, error } = await planInDocument(host, find, replaceWith, opts);
+        if (error) return `Replace failed: ${error}`;
+        if (plans.length === 0) return 'No matches — nothing to replace.';
+
+        const preview = formatPlan(plans);
+        if (dryRun) return `DRY RUN, nothing changed.\n${preview}`;
+
+        const scope = paragraphs?.length ? `paragraph(s) ${paragraphs.join(', ')}` : 'the whole document';
+        const approved = await requestApproval(
+          `Replace ${plans.length} match(es) in ${scope}:\n${preview}`,
+        );
+        if (!approved) return 'User declined the replacement.';
+
+        return JSON.stringify(await applyReplacements(host, plans), null, 2);
+      } catch (err) {
+        return `Replace failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });
