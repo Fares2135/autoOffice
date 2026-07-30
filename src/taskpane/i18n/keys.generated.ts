@@ -24,6 +24,7 @@ export type TranslationKey =
   | "code.errorDetails"
   | "code.generatingCode"
   | "code.inspectActivity"
+  | "code.readActivity"
   | "code.rejectButton"
   | "code.result"
   | "code.statusError"
