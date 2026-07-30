@@ -166,6 +166,17 @@ describe('buildSystemPrompt', () => {
     expect(buildSystemPrompt('word', 'en')).toMatch(/ask ONE short question/);
   });
 
+  it('forbids formatting the whole paragraph when a phrase was selected', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('PARTIAL');
+    expect(p).toMatch(/NEVER the containing paragraph/);
+  });
+
+  it('binds ordinals to zero-based indexes', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toMatch(/"the third paragraph" is index 2/);
+  });
+
   it('bans context.sync() inside loops', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('NEVER call context.sync() inside a loop');

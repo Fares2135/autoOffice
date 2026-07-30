@@ -63,3 +63,61 @@ describe('diffParagraphs', () => {
     expect(diffParagraphs('a\rb', 'a\nb').unchanged).toBe(true);
   });
 });
+
+import { attachContext, setLastEditTargets, getLastEditTargets } from './diff.ts';
+
+describe('changedIndexes', () => {
+  it('points at where the new text ended up', () => {
+    const d = diffParagraphs('a\rold\rc', 'a\rnew\rc');
+    expect(d.changedIndexes).toEqual([1]);
+  });
+
+  it('covers an insertion', () => {
+    expect(diffParagraphs('a\rb', 'a\rmid\rb').changedIndexes).toEqual([1]);
+  });
+
+  it('is empty for a pure deletion', () => {
+    expect(diffParagraphs('a\rgone\rb', 'a\rb').changedIndexes).toEqual([]);
+  });
+
+  it('is empty when nothing changed', () => {
+    expect(diffParagraphs('a\rb', 'a\rb').changedIndexes).toEqual([]);
+  });
+
+  it('lists every changed paragraph', () => {
+    const d = diffParagraphs('a\rx\ry\rb', 'a\rp\rq\rb');
+    expect(d.changedIndexes).toEqual([1, 2]);
+  });
+});
+
+describe('attachContext', () => {
+  it('rides the selection note along with the message', () => {
+    const out = attachContext('make this bold', 'selected text: "hello"; paragraph index: 3');
+    expect(out).toContain('make this bold');
+    expect(out).toContain('[Current selection — selected text: "hello"; paragraph index: 3]');
+  });
+
+  it('leaves the message untouched when there is nothing to attach', () => {
+    expect(attachContext('hello', null)).toBe('hello');
+  });
+
+  it('adds the previous-edit referent', () => {
+    const out = attachContext('make it bigger', null, [4, 5]);
+    expect(out).toMatch(/previous edit changed paragraph\(s\) 4, 5/);
+    expect(out).toMatch(/"it" and "that" refer here/);
+  });
+
+  it('carries both notes at once', () => {
+    const out = attachContext('do it here', 'cursor position, nothing selected', [7]);
+    expect(out).toContain('[Current selection —');
+    expect(out).toContain('previous edit changed');
+  });
+});
+
+describe('last-edit slot', () => {
+  it('remembers the most recent target only', () => {
+    setLastEditTargets([1]);
+    setLastEditTargets([9, 10]);
+    expect(getLastEditTargets()).toEqual([9, 10]);
+  });
+});

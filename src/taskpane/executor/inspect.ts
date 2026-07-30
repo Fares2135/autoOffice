@@ -264,6 +264,21 @@ export interface SelectionContext {
   /** True when there is a caret but no selected text. */
   empty: boolean;
   text: string;
+  /**
+   * True when the selection covers only part of its paragraph. Formatting the
+   * whole paragraph in that case is the classic "not what I meant" edit.
+   */
+  partial: boolean;
+  /** Text of the paragraph(s) the selection sits in, for comparison. */
+  paragraphText: string;
+  /** Direct formatting of the selected range itself. */
+  font: {
+    name: string | null;
+    size: number | null;
+    bold: boolean | null;
+    italic: boolean | null;
+    color: string | null;
+  } | null;
   /** Body paragraph indexes the selection covers, when they could be resolved. */
   paragraphs: number[];
   /** Set when the same text appears more than once and the index is ambiguous. */
@@ -274,7 +289,12 @@ export interface SelectionContext {
   rtl: boolean;
   /** Nearest heading at or above the selection — what the user means by "this section". */
   section: { paragraph: number; style: string; text: string } | null;
-  table: { index: number; row: number | null; cell: number | null } | null;
+  table: {
+    index: number | null;
+    candidates?: number[];
+    row: number | null;
+    cell: number | null;
+  } | null;
 }
 
 /** Pure: nearest heading at or above `index`, i.e. the section the user is in. */
@@ -312,11 +332,41 @@ export function resolveIndexes(
     : { paragraphs };
 }
 
+/**
+ * Pure: is the selection narrower than the paragraph(s) it lies in? Compared on
+ * whitespace-collapsed text, because Word reports paragraph text with trailing
+ * marks the range does not include.
+ */
+export function isPartialSelection(selectedText: string, paragraphText: string): boolean {
+  const a = selectedText.replace(/\s+/g, ' ').trim();
+  const b = paragraphText.replace(/\s+/g, ' ').trim();
+  if (a === '' || b === '') return false;
+  return a !== b && b.includes(a);
+}
+
 /** Pure: renders the selection for the model, or null when there is nothing useful to say. */
 export function formatSelection(sel: SelectionContext | null): string | null {
   if (!sel) return null;
   const parts: string[] = [];
   parts.push(sel.empty ? 'cursor position, nothing selected' : `selected text: "${preview(sel.text)}"`);
+  if (sel.partial) {
+    parts.push(
+      'PARTIAL selection — it covers only part of its paragraph, so edit the selected range ' +
+      'itself, not the whole paragraph',
+    );
+    parts.push(`containing paragraph: "${preview(sel.paragraphText, 160)}"`);
+  }
+  if (sel.font) {
+    const f = sel.font;
+    const bits = [
+      f.name ? `font ${f.name}` : '',
+      f.size ? `${f.size}pt` : '',
+      f.bold ? 'bold' : '',
+      f.italic ? 'italic' : '',
+      f.color ? `colour ${f.color}` : '',
+    ].filter(Boolean);
+    if (bits.length) parts.push(`current formatting: ${bits.join(', ')}`);
+  }
   if (sel.paragraphs.length === 1) parts.push(`paragraph index: ${sel.paragraphs[0]}`);
   else if (sel.paragraphs.length > 1) parts.push(`paragraph indexes: ${sel.paragraphs.join(', ')}`);
   else if (sel.candidates?.length) parts.push(`paragraph index ambiguous, candidates: ${sel.candidates.join(', ')}`);
@@ -324,9 +374,14 @@ export function formatSelection(sel: SelectionContext | null): string | null {
   if (sel.alignment) parts.push(`alignment: ${sel.alignment}`);
   if (sel.isListItem) parts.push('inside a list');
   if (sel.table) {
+    const which = sel.table.index !== null
+      ? `table ${sel.table.index}`
+      : sel.table.candidates?.length
+        ? `a table (index ambiguous, candidates: ${sel.table.candidates.join(', ')})`
+        : 'a table (index unknown)';
     const where = sel.table.row !== null && sel.table.cell !== null
-      ? `table ${sel.table.index}, row ${sel.table.row}, cell ${sel.table.cell}`
-      : `table ${sel.table.index}`;
+      ? `${which}, row ${sel.table.row}, cell ${sel.table.cell}`
+      : which;
     parts.push(`inside ${where}`);
   }
   if (sel.section) parts.push(`under heading ${sel.section.paragraph} "${sel.section.text}"`);
@@ -341,10 +396,15 @@ export function formatSelection(sel: SelectionContext | null): string | null {
  */
 export async function getSelection(host: HostKind): Promise<SelectionContext | null> {
   if (host !== 'word') return null;
+
+  // Built in stages, each guarded on its own. A failure in the table lookup
+  // must not throw away the whole note — losing the selection entirely is far
+  // worse than losing one field of it.
+  let base: SelectionContext | null = null;
   try {
-    return await Word.run(async (context) => {
+    base = await Word.run(async (context) => {
       const range = context.document.getSelection();
-      range.load('text,style');
+      range.load('text,style,font/name,font/size,font/bold,font/italic,font/color');
 
       const selected = range.paragraphs;
       selected.load('items/text,items/style,items/alignment,items/isListItem');
@@ -352,50 +412,76 @@ export async function getSelection(host: HostKind): Promise<SelectionContext | n
       const body = context.document.body.paragraphs;
       body.load('items/text,items/style');
 
-      const table = range.parentTableOrNullObject;
-      table.load('isNullObject');
-      const cell = range.parentTableCellOrNullObject;
-      cell.load('isNullObject,rowIndex,cellIndex');
-
       await context.sync();
 
       const first = selected.items[0];
+      const paragraphText = selected.items.map((p) => p.text).join('\n');
       const resolved = resolveIndexes(
         body.items.map((p) => p.text),
         selected.items.map((p) => p.text),
       );
-
-      let tableInfo: SelectionContext['table'] = null;
-      if (!table.isNullObject) {
-        const tables = context.document.body.tables;
-        tables.load('items');
-        await context.sync();
-        // Index by position among body tables; null when it cannot be placed.
-        const index = tables.items.findIndex((t) => t === table);
-        tableInfo = {
-          index: index >= 0 ? index : 0,
-          row: cell.isNullObject ? null : cell.rowIndex,
-          cell: cell.isNullObject ? null : cell.cellIndex,
-        };
-      }
-
       const anchor = resolved.paragraphs[0] ?? resolved.candidates?.[0] ?? 0;
+      const text = range.text ?? '';
+
       return {
-        empty: !range.text,
-        text: range.text ?? '',
+        empty: !text,
+        text,
+        partial: isPartialSelection(text, paragraphText),
+        paragraphText: preview(paragraphText, 300),
+        font: {
+          name: range.font?.name ?? null,
+          size: range.font?.size ?? null,
+          bold: range.font?.bold ?? null,
+          italic: range.font?.italic ?? null,
+          color: range.font?.color ?? null,
+        },
         paragraphs: resolved.paragraphs,
         ...(resolved.candidates ? { candidates: resolved.candidates } : {}),
         style: range.style ?? first?.style ?? null,
         alignment: (first?.alignment as unknown as string) ?? null,
         isListItem: first?.isListItem ?? false,
-        rtl: BIDI.test(range.text ?? ''),
+        rtl: BIDI.test(text),
         section: nearestHeading(body.items.map((p) => ({ style: p.style, text: p.text })), anchor),
-        table: tableInfo,
-      };
+        table: null,
+      } as SelectionContext;
     });
   } catch {
     return null;
   }
+
+  // Table context is version-gated and optional, so it gets its own attempt.
+  try {
+    const table = await Word.run(async (context) => {
+      const range = context.document.getSelection();
+      const parent = range.parentTableOrNullObject;
+      parent.load('isNullObject,values,rowCount');
+      const cell = range.parentTableCellOrNullObject;
+      cell.load('isNullObject,rowIndex,cellIndex');
+      const tables = context.document.body.tables;
+      tables.load('items/values');
+      await context.sync();
+
+      if (parent.isNullObject) return null;
+      // Proxy objects are never identity-equal, so match on content and report
+      // ambiguity rather than mislabelling the table.
+      const key = JSON.stringify(parent.values ?? []);
+      const matches = tables.items
+        .map((t, i) => ({ i, key: JSON.stringify(t.values ?? []) }))
+        .filter((t) => t.key === key)
+        .map((t) => t.i);
+      return {
+        index: matches.length === 1 ? matches[0] : null,
+        candidates: matches.length > 1 ? matches : undefined,
+        row: cell.isNullObject ? null : cell.rowIndex,
+        cell: cell.isNullObject ? null : cell.cellIndex,
+      };
+    });
+    if (table) base.table = table;
+  } catch {
+    // No table context; the rest of the note still stands.
+  }
+
+  return base;
 }
 
 /** Back-compat wrapper used when attaching context to a user message. */
