@@ -193,3 +193,26 @@ describe('run history', () => {
     expect(previousRun('x();')).toBeUndefined();
   });
 });
+
+describe('lintCode — the silent paragraph destroyer', () => {
+  it('flags replacing a paragraph with a fragment matched from it', () => {
+    const code = `
+      const m = p.text.match(/(Module\\s+\\d+)\\s*\\|.*$/);
+      if (m) { p.insertText(m[1], Word.InsertLocation.replace); }
+      await context.sync();
+    `;
+    const w = lintCode(code, 'word');
+    expect(w.map(x => x.id)).toContain('paragraph-replace-with-fragment');
+    expect(w.find(x => x.id === 'paragraph-replace-with-fragment')!.message).toContain('replace_text');
+  });
+
+  it('does not flag matching without a replace', () => {
+    expect(ids('const m = p.text.match(/x/); console.log(m);'))
+      .not.toContain('paragraph-replace-with-fragment');
+  });
+
+  it('does not flag an append after a match', () => {
+    expect(ids('const m = t.match(/x/); body.insertParagraph(m[0], Word.InsertLocation.end);'))
+      .not.toContain('paragraph-replace-with-fragment');
+  });
+});

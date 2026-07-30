@@ -5,6 +5,7 @@
 // directly — no code generation, no approval, nothing written.
 import type { HostKind } from '../host/context.ts';
 import { officeProbe, type SetProbe } from '../agent/capabilities.ts';
+import { escapeInvisible } from './replace.ts';
 
 const MAX_HEADINGS = 40;
 const MAX_STYLES = 20;
@@ -208,7 +209,9 @@ export async function findText(
       const found = opts.wholeWord
         ? new RegExp(`\\b${escapeRegExp(needle)}\\b`).test(haystack)
         : haystack.includes(needle);
-      if (found) hits.push({ paragraph: index, text: preview(p.text, 200), style: p.style });
+      // escapeInvisible, not preview: a collapsed preview turns a tab-separated
+      // index paragraph into one unreadable sentence and hides bidi marks.
+      if (found) hits.push({ paragraph: index, text: escapeInvisible(p.text, 240), style: p.style });
     });
 
     // Table membership per hit: knowing a match sits in a table, and being able
@@ -247,7 +250,7 @@ export async function readParagraphs(
   host: HostKind,
   from: number,
   to: number,
-): Promise<{ from: number; to: number; total: number; paragraphs: Array<{ index: number; text: string; style: string }> } | { error: string }> {
+): Promise<{ from: number; to: number; total: number; paragraphs: Array<{ index: number; text: string; visible: string; style: string }> } | { error: string }> {
   if (host !== 'word') return { error: `read_paragraphs is only available in Word, not ${host}.` };
 
   return Word.run(async (context) => {
@@ -265,6 +268,8 @@ export async function readParagraphs(
       paragraphs: paragraphs.items.slice(start, end).map((p, i) => ({
         index: start + i,
         text: p.text,
+        // Same text with tabs, line breaks and bidi marks spelled out.
+        visible: escapeInvisible(p.text, 600),
         style: p.style,
       })),
     };

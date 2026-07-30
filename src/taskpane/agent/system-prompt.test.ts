@@ -187,6 +187,19 @@ describe('buildSystemPrompt', () => {
     expect(buildSystemPrompt('word', 'en')).toMatch(/Never re-run a script you already ran this turn/);
   });
 
+  it('routes replacement through replace_text with a dry run', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('replace_text');
+    expect(p).toMatch(/dryRun true first/);
+    expect(p).toMatch(/Never write a replace script/);
+  });
+
+  it('warns about invisible characters and tab-packed paragraphs', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('<RLM>');
+    expect(p).toMatch(/MANY entries separated by tabs/);
+  });
+
   it('bans context.sync() inside loops', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('NEVER call context.sync() inside a loop');

@@ -14,6 +14,7 @@ import {
   makeReadHeadersFootersTool,
   makeReadSelectionTool,
   makeTableForParagraphTool,
+  makeReplaceTextTool,
 } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
@@ -262,6 +263,10 @@ export async function runAgent(
       read_headers_footers: makeReadHeadersFootersTool(host),
       read_selection: makeReadSelectionTool(host),
       table_for_paragraph: makeTableForParagraphTool(host),
+      replace_text: makeReplaceTextTool(
+        host,
+        (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
+      ),
       revert_formatting: makeRevertFormattingTool(
         host,
         (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
