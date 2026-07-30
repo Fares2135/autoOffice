@@ -260,29 +260,147 @@ export async function getBodyText(host: HostKind): Promise<string | null> {
  * What the user currently has selected. "Make this bold" is meaningless
  * without it, and the model would otherwise burn a turn asking.
  */
-export async function getSelectionContext(host: HostKind): Promise<string | null> {
+export interface SelectionContext {
+  /** True when there is a caret but no selected text. */
+  empty: boolean;
+  text: string;
+  /** Body paragraph indexes the selection covers, when they could be resolved. */
+  paragraphs: number[];
+  /** Set when the same text appears more than once and the index is ambiguous. */
+  candidates?: number[];
+  style: string | null;
+  alignment: string | null;
+  isListItem: boolean;
+  rtl: boolean;
+  /** Nearest heading at or above the selection — what the user means by "this section". */
+  section: { paragraph: number; style: string; text: string } | null;
+  table: { index: number; row: number | null; cell: number | null } | null;
+}
+
+/** Pure: nearest heading at or above `index`, i.e. the section the user is in. */
+export function nearestHeading(
+  paragraphs: Array<{ style: string; text: string }>,
+  index: number,
+): { paragraph: number; style: string; text: string } | null {
+  for (let i = Math.min(index, paragraphs.length - 1); i >= 0; i--) {
+    const p = paragraphs[i];
+    if (p && typeof p.style === 'string' && /^heading/i.test(p.style)) {
+      return { paragraph: i, style: p.style, text: preview(p.text, 120) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Pure: resolve selected paragraph text to body indexes. Exact when the text is
+ * unique; otherwise every candidate is reported rather than picking one, because
+ * silently guessing the wrong paragraph is how an edit lands in the wrong place.
+ */
+export function resolveIndexes(
+  bodyTexts: string[],
+  selectedTexts: string[],
+): { paragraphs: number[]; candidates?: number[] } {
+  const paragraphs: number[] = [];
+  const candidates: number[] = [];
+  for (const text of selectedTexts) {
+    const hits = bodyTexts.reduce<number[]>((acc, t, i) => (t === text ? [...acc, i] : acc), []);
+    if (hits.length === 1) paragraphs.push(hits[0]);
+    else candidates.push(...hits);
+  }
+  return candidates.length > 0 && paragraphs.length === 0
+    ? { paragraphs, candidates: [...new Set(candidates)] }
+    : { paragraphs };
+}
+
+/** Pure: renders the selection for the model, or null when there is nothing useful to say. */
+export function formatSelection(sel: SelectionContext | null): string | null {
+  if (!sel) return null;
+  const parts: string[] = [];
+  parts.push(sel.empty ? 'cursor position, nothing selected' : `selected text: "${preview(sel.text)}"`);
+  if (sel.paragraphs.length === 1) parts.push(`paragraph index: ${sel.paragraphs[0]}`);
+  else if (sel.paragraphs.length > 1) parts.push(`paragraph indexes: ${sel.paragraphs.join(', ')}`);
+  else if (sel.candidates?.length) parts.push(`paragraph index ambiguous, candidates: ${sel.candidates.join(', ')}`);
+  if (sel.style) parts.push(`style: ${sel.style}`);
+  if (sel.alignment) parts.push(`alignment: ${sel.alignment}`);
+  if (sel.isListItem) parts.push('inside a list');
+  if (sel.table) {
+    const where = sel.table.row !== null && sel.table.cell !== null
+      ? `table ${sel.table.index}, row ${sel.table.row}, cell ${sel.table.cell}`
+      : `table ${sel.table.index}`;
+    parts.push(`inside ${where}`);
+  }
+  if (sel.section) parts.push(`under heading ${sel.section.paragraph} "${sel.section.text}"`);
+  if (sel.rtl) parts.push('contains right-to-left script');
+  return parts.join('; ');
+}
+
+/**
+ * What the user is pointing at. "Make this bold", "add it here", "this column"
+ * are all unresolvable without it — and an empty selection still matters,
+ * because the caret is where "here" is.
+ */
+export async function getSelection(host: HostKind): Promise<SelectionContext | null> {
   if (host !== 'word') return null;
   try {
     return await Word.run(async (context) => {
       const range = context.document.getSelection();
       range.load('text,style');
-      const paragraphs = range.paragraphs;
-      paragraphs.load('items/alignment');
+
+      const selected = range.paragraphs;
+      selected.load('items/text,items/style,items/alignment,items/isListItem');
+
+      const body = context.document.body.paragraphs;
+      body.load('items/text,items/style');
+
+      const table = range.parentTableOrNullObject;
+      table.load('isNullObject');
+      const cell = range.parentTableCellOrNullObject;
+      cell.load('isNullObject,rowIndex,cellIndex');
+
       await context.sync();
 
-      if (!range.text) return null;
-      const alignment = paragraphs.items[0]?.alignment;
-      const parts = [
-        `text: "${preview(range.text)}"`,
-        range.style ? `style: ${range.style}` : '',
-        alignment ? `alignment: ${alignment}` : '',
-        BIDI.test(range.text) ? 'contains right-to-left script' : '',
-      ].filter(Boolean);
-      return parts.join(', ');
+      const first = selected.items[0];
+      const resolved = resolveIndexes(
+        body.items.map((p) => p.text),
+        selected.items.map((p) => p.text),
+      );
+
+      let tableInfo: SelectionContext['table'] = null;
+      if (!table.isNullObject) {
+        const tables = context.document.body.tables;
+        tables.load('items');
+        await context.sync();
+        // Index by position among body tables; null when it cannot be placed.
+        const index = tables.items.findIndex((t) => t === table);
+        tableInfo = {
+          index: index >= 0 ? index : 0,
+          row: cell.isNullObject ? null : cell.rowIndex,
+          cell: cell.isNullObject ? null : cell.cellIndex,
+        };
+      }
+
+      const anchor = resolved.paragraphs[0] ?? resolved.candidates?.[0] ?? 0;
+      return {
+        empty: !range.text,
+        text: range.text ?? '',
+        paragraphs: resolved.paragraphs,
+        ...(resolved.candidates ? { candidates: resolved.candidates } : {}),
+        style: range.style ?? first?.style ?? null,
+        alignment: (first?.alignment as unknown as string) ?? null,
+        isListItem: first?.isListItem ?? false,
+        rtl: BIDI.test(range.text ?? ''),
+        section: nearestHeading(body.items.map((p) => ({ style: p.style, text: p.text })), anchor),
+        table: tableInfo,
+      };
     });
   } catch {
     return null;
   }
+}
+
+/** Back-compat wrapper used when attaching context to a user message. */
+export async function getSelectionContext(host: HostKind): Promise<string | null> {
+  return formatSelection(await getSelection(host));
 }
 
 const MAX_COMMENTS = 50;

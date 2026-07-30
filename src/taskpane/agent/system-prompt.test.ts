@@ -154,6 +154,18 @@ describe('buildSystemPrompt', () => {
     expect(p).toMatch(/If you already know enough, skip straight to step 3/);
   });
 
+  it('binds demonstratives to the selection instead of the document', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('WHAT THE USER MEANS');
+    expect(p).toMatch(/never fall back to the whole document because a demonstrative was vague/);
+    expect(p).toMatch(/An empty selection is still information/);
+    expect(p).toContain('read_selection');
+  });
+
+  it('asks one question rather than covering both readings', () => {
+    expect(buildSystemPrompt('word', 'en')).toMatch(/ask ONE short question/);
+  });
+
   it('bans context.sync() inside loops', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('NEVER call context.sync() inside a loop');
