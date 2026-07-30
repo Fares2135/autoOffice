@@ -33,6 +33,7 @@ function makeSettings(providerId: string, modelId: string): AppSettings {
     autoApprove: true,
     mcpServers: [],
     maxRetries: 3,
+    maxSteps: 30,
     executionTimeout: 30000,
   };
 }

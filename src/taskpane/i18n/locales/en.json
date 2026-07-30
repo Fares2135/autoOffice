@@ -24,7 +24,8 @@
     "hostPowerpoint": "PowerPoint",
     "hostNounWord": "document",
     "hostNounExcel": "workbook",
-    "hostNounPowerpoint": "presentation"
+    "hostNounPowerpoint": "presentation",
+    "stepLimitReached": "Stopped after {{steps}} tool calls without finishing. Send \"continue\" to carry on, or raise the step limit in Settings."
   },
   "settings": {
     "title": "Settings",
@@ -54,7 +55,8 @@
     "lmstudioStatusConnected": "Connected · {{count}} models",
     "lmstudioStatusUnreachable": "Not running",
     "lmstudioCorsHint": "Open LM Studio → Developer → enable CORS, or run \"lms server start --cors\" in a terminal.",
-    "lmstudioRefreshAria": "Refresh model list"
+    "lmstudioRefreshAria": "Refresh model list",
+    "maxStepsLabel": "Max tool calls per request"
   },
   "code": {
     "approveButton": "Approve & Run",

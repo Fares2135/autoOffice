@@ -1,6 +1,11 @@
 import { streamText, tool, jsonSchema, stepCountIs, type ModelMessage } from 'ai';
 import { createModel } from './providers.ts';
-import { makeLookupSkillTool, makeInspectDocumentTool } from './tools.ts';
+import {
+  makeLookupSkillTool,
+  makeInspectDocumentTool,
+  makeFindTextTool,
+  makeReadParagraphsTool,
+} from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
 import { thinkingProviderOptions } from './thinking.ts';
@@ -83,7 +88,9 @@ export async function runAgent(
     },
   ];
 
-  let retryCount = 0;
+  // Consecutive execute_code failures. Reset by any success: three failures
+  // spread across a long task are not a reason to give up on the next one.
+  let consecutiveFailures = 0;
   callbacks.onMessage({ role: 'assistant', content: '' });
 
   const executeCode = tool({
@@ -137,6 +144,7 @@ export async function runAgent(
             diffText,
             result.logs && result.logs.length ? `Logs:\n${result.logs.join('\n')}` : '',
           ].filter(Boolean).join('\n\n');
+          consecutiveFailures = 0;
           callbacks.onUpsertCodeBlock(toolCallId, { code, status: 'success', result: uiResult });
           return [
             `Code executed successfully. Output: ${JSON.stringify(result.output)}`,
@@ -164,9 +172,9 @@ export async function runAgent(
         ].filter(Boolean).join('\n\n');
         callbacks.onUpsertCodeBlock(toolCallId, { code, status: 'error', result: uiResult });
 
-        retryCount++;
-        if (retryCount >= settings.maxRetries) {
-          return `Failed after ${retryCount} attempts. Last error: ${result.error}${debugSection ? `\n${debugSection}` : ''}${logsStr}`;
+        consecutiveFailures++;
+        if (consecutiveFailures >= settings.maxRetries) {
+          return `Failed after ${consecutiveFailures} consecutive attempts. Last error: ${result.error}${debugSection ? `\n${debugSection}` : ''}${logsStr}`;
         }
         return `Execution failed: ${result.error}\n${result.stack || ''}${debugSection ? `\n${debugSection}` : ''}${logsStr}\nPlease fix and try again.`;
       } catch (err) {
@@ -193,11 +201,17 @@ export async function runAgent(
     ...(providerOptions ? { providerOptions } : {}),
     tools: {
       inspect_document: makeInspectDocumentTool(host),
+      find_text: makeFindTextTool(host),
+      read_paragraphs: makeReadParagraphsTool(host),
       lookup_skill: makeLookupSkillTool(host),
       execute_code: executeCode,
       ...mcpTools,
     },
-    stopWhen: stepCountIs(settings.maxRetries + 5),
+    // Every tool call is a step, so this was maxRetries + 5 = 8 by default:
+    // a task that inspected the document and ran a few scripts hit the ceiling
+    // and the stream simply ended mid-task. Retries and step budget are
+    // unrelated concerns and are now configured separately.
+    stopWhen: stepCountIs(settings.maxSteps),
     onError: ({ error }) => {
       capturedStreamError = error;
     },
@@ -211,11 +225,11 @@ export async function runAgent(
             toolActivity: { toolName: names.join(', ') },
           });
         }
-        if (tc.toolName === 'inspect_document') {
+        if (tc.toolName === 'inspect_document' || tc.toolName === 'find_text' || tc.toolName === 'read_paragraphs') {
           callbacks.onMessage({
             role: 'assistant',
             content: '',
-            toolActivity: { toolName: 'inspect_document' },
+            toolActivity: { toolName: tc.toolName },
           });
         }
       }
@@ -279,6 +293,14 @@ export async function runAgent(
   // steps in a multi-step agent loop.
   try {
     const steps = await result.steps;
+    // Hitting the ceiling ends the stream with no error and no final message,
+    // which reads as "it just stopped". Say it out loud instead.
+    if (steps.length >= settings.maxSteps) {
+      callbacks.onMessage({
+        role: 'assistant',
+        content: translationService.t('chat.stepLimitReached', { steps: String(settings.maxSteps) }),
+      });
+    }
     const stepCosts = steps.map(step => computeCallCost({
       providerId: settings.selectedProviderId,
       modelId: settings.selectedModel,

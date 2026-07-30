@@ -159,6 +159,85 @@ async function inspectPowerPoint(): Promise<SimpleOutline> {
   });
 }
 
+const MAX_HITS = 50;
+const MAX_READ_PARAGRAPHS = 100;
+
+export interface SearchHit {
+  paragraph: number;
+  text: string;
+  style: string;
+}
+
+/**
+ * Read-only search. Replaces "write a script, wait for approval, run it, read
+ * the log" for the single most common question the model has about a document:
+ * where does this text appear?
+ */
+export async function findText(
+  host: HostKind,
+  query: string,
+  opts: { matchCase?: boolean; wholeWord?: boolean } = {},
+): Promise<{ query: string; hits: SearchHit[]; total: number; truncated: boolean } | { error: string }> {
+  if (host !== 'word') return { error: `find_text is only available in Word, not ${host}.` };
+  if (!query) return { error: 'query must not be empty.' };
+
+  return Word.run(async (context) => {
+    const paragraphs = context.document.body.paragraphs;
+    paragraphs.load('items/text,items/style');
+    await context.sync();
+
+    const needle = opts.matchCase ? query : query.toLowerCase();
+    const hits: SearchHit[] = [];
+    paragraphs.items.forEach((p, index) => {
+      const haystack = opts.matchCase ? p.text : p.text.toLowerCase();
+      const found = opts.wholeWord
+        ? new RegExp(`\\b${escapeRegExp(needle)}\\b`).test(haystack)
+        : haystack.includes(needle);
+      if (found) hits.push({ paragraph: index, text: preview(p.text, 200), style: p.style });
+    });
+
+    const capped = capList(hits, MAX_HITS);
+    return { query, hits: capped.items, total: hits.length, truncated: capped.truncated };
+  });
+}
+
+/** Pure: escapes a user string for use inside a RegExp. */
+export function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Read-only paragraph slice, so the model can read a section it already
+ * located without generating code for it.
+ */
+export async function readParagraphs(
+  host: HostKind,
+  from: number,
+  to: number,
+): Promise<{ from: number; to: number; total: number; paragraphs: Array<{ index: number; text: string; style: string }> } | { error: string }> {
+  if (host !== 'word') return { error: `read_paragraphs is only available in Word, not ${host}.` };
+
+  return Word.run(async (context) => {
+    const paragraphs = context.document.body.paragraphs;
+    paragraphs.load('items/text,items/style');
+    await context.sync();
+
+    const total = paragraphs.items.length;
+    const start = Math.max(0, Math.min(from, total));
+    const end = Math.min(total, Math.max(start, to) + 1, start + MAX_READ_PARAGRAPHS);
+    return {
+      from: start,
+      to: end - 1,
+      total,
+      paragraphs: paragraphs.items.slice(start, end).map((p, i) => ({
+        index: start + i,
+        text: p.text,
+        style: p.style,
+      })),
+    };
+  });
+}
+
 /**
  * Body text for the before/after diff. Returns null for hosts where a text
  * snapshot is not meaningful, which skips the diff entirely.

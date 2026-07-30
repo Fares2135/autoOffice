@@ -25,6 +25,9 @@ export interface AppSettings {
   autoApprove: boolean;
   mcpServers: McpServerConfig[];
   maxRetries: number;
+  /** Tool calls allowed per turn. Unrelated to maxRetries: a task that
+   *  inspects the document and runs a few scripts needs room to finish. */
+  maxSteps: number;
   executionTimeout: number;
 }
 
@@ -48,6 +51,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoApprove: false,
   mcpServers: [],
   maxRetries: 3,
+  maxSteps: 30,
   executionTimeout: 30000,
 };
 

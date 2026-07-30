@@ -288,6 +288,16 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
             />
           </Field>
 
+          <Field label={t('settings.maxStepsLabel')}>
+            <Input
+              type="number"
+              value={String(settings.maxSteps)}
+              onChange={(_, data) => onChange({ ...settings, maxSteps: parseInt(data.value) || 30 })}
+              min="5"
+              max="100"
+            />
+          </Field>
+
           <Field label={t('settings.timeoutLabel')}>
             <Input
               type="number"

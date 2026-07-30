@@ -24,7 +24,8 @@
     "hostPowerpoint": "PowerPoint",
     "hostNounWord": "مستند",
     "hostNounExcel": "مصنف",
-    "hostNounPowerpoint": "عرض تقديمي"
+    "hostNounPowerpoint": "عرض تقديمي",
+    "stepLimitReached": "توقّف بعد {{steps}} استدعاء أداة دون إكمال المهمة. أرسل «أكمل» للمتابعة، أو ارفع الحد من الإعدادات."
   },
   "settings": {
     "title": "الإعدادات",
@@ -54,7 +55,8 @@
     "lmstudioStatusConnected": "متصل · {{count}} نموذجًا",
     "lmstudioStatusUnreachable": "غير مُشغَّل",
     "lmstudioCorsHint": "افتح LM Studio → Developer ثم فعّل CORS، أو نفّذ \"lms server start --cors\" في الطرفية.",
-    "lmstudioRefreshAria": "تحديث قائمة النماذج"
+    "lmstudioRefreshAria": "تحديث قائمة النماذج",
+    "maxStepsLabel": "الحد الأقصى لاستدعاءات الأدوات في الطلب"
   },
   "code": {
     "approveButton": "موافقة وتنفيذ",
