@@ -19,7 +19,7 @@ export interface WordOutline {
   headingsTruncated?: true;
   stylesInUse: string[];
   stylesTruncated?: true;
-  tables: Array<{ rows: number }>;
+  tables: Array<{ index: number; rows: number; columns: number; firstRow: string[] }>;
   tablesTruncated?: true;
   listParagraphs: number;
   sections: number;
@@ -77,7 +77,9 @@ async function inspectWord(probe: SetProbe): Promise<WordOutline> {
     paragraphs.load('items/style,items/text,items/isListItem');
 
     const tables = body.tables;
-    tables.load('items/rowCount');
+    // Row count alone cannot tell six tables apart. Columns and the first row
+    // are what let the model pick the right one without dumping every table.
+    tables.load('items/rowCount,items/rows/items/cells/items/value');
 
     const sections = context.document.sections;
     sections.load('items');
@@ -90,7 +92,18 @@ async function inspectWord(probe: SetProbe): Promise<WordOutline> {
       .map((p) => ({ style: p.style, text: preview(p.text, 120) }));
     const headings = capList(headingItems, MAX_HEADINGS);
     const styles = capList(distinct(paraItems.map((p) => p.style)), MAX_STYLES);
-    const tableRows = capList(tables.items.map((t) => ({ rows: t.rowCount })), MAX_TABLES);
+    const tableRows = capList(
+      tables.items.map((t, i) => {
+        const firstRowCells = t.rows.items[0]?.cells.items ?? [];
+        return {
+          index: i,
+          rows: t.rowCount,
+          columns: firstRowCells.length,
+          firstRow: firstRowCells.slice(0, 8).map((c) => preview(c.value ?? '', 40)),
+        };
+      }),
+      MAX_TABLES,
+    );
 
     const out: WordOutline = {
       host: 'word',
@@ -166,6 +179,8 @@ export interface SearchHit {
   paragraph: number;
   text: string;
   style: string;
+  /** True when the hit is inside a table — a body search alone never says so. */
+  inTable?: boolean;
 }
 
 /**
@@ -196,7 +211,25 @@ export async function findText(
       if (found) hits.push({ paragraph: index, text: preview(p.text, 200), style: p.style });
     });
 
+    // Table membership per hit: knowing a match sits in a table, and being able
+    // to hand that paragraph index to table_for_paragraph, is what turns
+    // "find the table that contains B C C B D" into two calls instead of ten
+    // exploratory scripts.
     const capped = capList(hits, MAX_HITS);
+    const parents = capped.items.map((hit) => {
+      const parent = paragraphs.items[hit.paragraph].parentTableOrNullObject;
+      parent.load('isNullObject');
+      return parent;
+    });
+    try {
+      await context.sync();
+      capped.items.forEach((hit, i) => {
+        if (!parents[i].isNullObject) hit.inTable = true;
+      });
+    } catch {
+      // Older client without parentTableOrNullObject; hits still stand.
+    }
+
     return { query, hits: capped.items, total: hits.length, truncated: capped.truncated };
   });
 }

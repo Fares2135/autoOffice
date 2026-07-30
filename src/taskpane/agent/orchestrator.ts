@@ -13,13 +13,14 @@ import {
   makeReadTrackedChangesTool,
   makeReadHeadersFootersTool,
   makeReadSelectionTool,
+  makeTableForParagraphTool,
 } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
 import { thinkingProviderOptions } from './thinking.ts';
 import { getBodyText, getSelectionContext } from '../executor/inspect.ts';
 import { captureFormatting } from '../executor/formatting.ts';
-import { lintCode, formatWarnings } from '../executor/lint.ts';
+import { lintCode, formatWarnings, previousRun, rememberRun, clearRunHistory } from '../executor/lint.ts';
 import {
   diffParagraphs, formatDiff, attachContext,
   setLastEditTargets, getLastEditTargets,
@@ -38,7 +39,7 @@ const READ_ONLY_TOOLS = new Set([
   'inspect_document', 'find_text', 'read_paragraphs',
   'get_formatting', 'get_styles', 'read_table',
   'read_comments', 'read_tracked_changes', 'read_headers_footers',
-  'read_selection',
+  'read_selection', 'table_for_paragraph',
 ]);
 
 export type CodeBlockStatus = 'streaming' | 'pending' | 'rejected' | 'running' | 'success' | 'error';
@@ -99,6 +100,7 @@ export async function runAgent(
   }
 
   // "Make this bold" only means something with the selection attached.
+  clearRunHistory();
   const selection = await getSelectionContext(host);
   const messages: ModelMessage[] = [
     ...conversationHistory,
@@ -132,6 +134,17 @@ export async function runAgent(
       try {
         // Surface static warnings while the user can still decline, and give
         // the model the same list so it can narrow the edit itself.
+        const seen = previousRun(code);
+        if (seen !== undefined) {
+          callbacks.onUpsertCodeBlock(toolCallId, {
+            code,
+            status: 'success',
+            result: 'Identical script already run in this turn — previous result reused.',
+          });
+          return `You already ran this exact script in this turn. Its result was:\n${seen}\n` +
+            `Use it instead of running the same script again.`;
+        }
+
         const warnings = lintCode(code, host);
         const warningText = formatWarnings(warnings);
         if (!settings.autoApprove) {
@@ -180,6 +193,7 @@ export async function runAgent(
             result.logs && result.logs.length ? `Logs:\n${result.logs.join('\n')}` : '',
           ].filter(Boolean).join('\n\n');
           consecutiveFailures = 0;
+          rememberRun(code, uiResult);
           callbacks.onUpsertCodeBlock(toolCallId, { code, status: 'success', result: uiResult });
           return [
             `Code executed successfully. Output: ${JSON.stringify(result.output)}`,
@@ -247,6 +261,7 @@ export async function runAgent(
       read_tracked_changes: makeReadTrackedChangesTool(host),
       read_headers_footers: makeReadHeadersFootersTool(host),
       read_selection: makeReadSelectionTool(host),
+      table_for_paragraph: makeTableForParagraphTool(host),
       revert_formatting: makeRevertFormattingTool(
         host,
         (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),

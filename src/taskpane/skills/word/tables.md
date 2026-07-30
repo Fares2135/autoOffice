@@ -228,3 +228,74 @@ await Word.run(async (context) => {
 - `mergeCells` indices are inclusive and 0-based: `(topRow, firstCol, bottomRow, lastCol)`
 - `getCellPadding` returns a proxy — load its `value` property before reading
 - `autoFitWindow()` and `distributeColumns()` are fire-and-forget; they take effect on `context.sync()`
+
+## Column widths
+
+`TableCell.width` is **read-only**. Assigning it silently does nothing — the
+script reports success and the document is unchanged. The settable property is
+`columnWidth`, in points (1 inch = 72 points).
+
+```javascript
+const tables = context.document.body.tables;
+tables.load("items");
+await context.sync();
+
+const table = tables.items[0];
+table.load("rows/items/cells/items");
+await context.sync();
+
+const widthPt = 0.6 * 72; // 0.6 inch
+for (const row of table.rows.items) {
+  for (let c = 0; c < Math.min(row.cells.items.length, 5); c++) {
+    row.cells.items[c].columnWidth = widthPt;
+  }
+}
+await context.sync();
+```
+
+Read the current widths back to confirm:
+
+```javascript
+table.load("rows/items/cells/items/columnWidth");
+await context.sync();
+return table.rows.items[0].cells.items.map(c => c.columnWidth);
+```
+
+## Column count, and why Table.values can lie
+
+`Word.Table` has `rowCount` but **no `columnCount`**. Take the column count from
+the first row:
+
+```javascript
+const columns = table.rows.items[0].cells.items.length;
+```
+
+`Table.values` is unreliable on tables containing nested tables or merged cells:
+it can flatten the entire table into a single string full of tab and paragraph
+characters. Read cells directly instead, or call the `read_table` tool, which
+already does:
+
+```javascript
+table.load("rows/items/cells/items/value");
+await context.sync();
+const grid = table.rows.items.map(r => r.cells.items.map(c => c.value));
+```
+
+## Identifying one table among several
+
+Do not dump every table looking for the right one. Search for distinctive cell
+text and walk up to its table:
+
+```javascript
+const paragraphs = context.document.body.paragraphs;
+paragraphs.load("items");
+await context.sync();
+
+const table = paragraphs.items[516].parentTableOrNullObject;
+table.load("isNullObject,rowCount");
+await context.sync();
+```
+
+The `find_text` tool flags hits that sit inside a table, and
+`table_for_paragraph` does this walk for you and returns the grid, the column
+count and the current widths — two calls instead of a series of dumps.

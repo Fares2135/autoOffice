@@ -20,12 +20,17 @@ export interface CodeWarning {
   message: string;
 }
 
-const stripped = (code: string): string =>
+const stripComments = (code: string): string =>
   code
-    // Drop comments and string literals so their contents cannot trigger a rule.
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/[^\n]*/g, ' ')
-    .replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, "''");
+    .replace(/\/\/[^\n]*/g, ' ');
+
+/**
+ * Comments and string literals both removed, so document text that happens to
+ * contain "body.clear()" cannot trigger a rule.
+ */
+const stripped = (code: string): string =>
+  stripComments(code).replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, "''");
 
 /** Does a loop body contain a context.sync() call? */
 function hasSyncInLoop(code: string): boolean {
@@ -80,6 +85,9 @@ const WHOLE_DOCUMENT_RULES: Array<{ id: string; test: RegExp; message: string }>
 
 export function lintCode(code: string, host: HostKind): CodeWarning[] {
   const src = stripped(code);
+  // load() arguments are strings, so the rules about *what is loaded* have to
+  // see string contents. Comments are still gone.
+  const srcWithStrings = stripComments(code);
   const warnings: CodeWarning[] = [];
 
   for (const rule of WHOLE_DOCUMENT_RULES) {
@@ -120,6 +128,44 @@ export function lintCode(code: string, host: HostKind): CodeWarning[] {
     }
   }
 
+  // APIs that do not exist, and silent no-ops. Every one of these was observed
+  // costing a real turn: the model writes it, the call throws or quietly does
+  // nothing, and the user waits through another round trip.
+  const API_RULES: Array<{ id: string; test: RegExp; message: string }> = [
+    {
+      id: 'cell-width-readonly',
+      test: /\.\s*(cells\s*\.\s*items\s*\[[^\]]*\]|cell)\s*\.\s*width\s*=|cells\s*\.\s*items\s*\[[^\]]*\]\s*\.\s*width\s*=/,
+      message: 'TableCell.width is read-only — assigning it does nothing. Set cell.columnWidth (points) instead.',
+    },
+    {
+      id: 'table-column-count',
+      test: /\btable[\w.]*\s*\.\s*columnCount\b|items\/columnCount/,
+      message: 'Word.Table has no columnCount. Take the column count from rows.items[0].cells.items.length.',
+    },
+    {
+      id: 'paragraphs-get-item-at',
+      test: /paragraphs\s*\.\s*getItemAt\s*\(/,
+      message: 'ParagraphCollection has no getItemAt(). Load items and index paragraphs.items[n], or use getFirst()/getLast().',
+    },
+    {
+      id: 'table-get-before',
+      test: /\.\s*get(Before|After)OrNullObject\s*\(/,
+      message: 'Word.Table has no getBeforeOrNullObject()/getAfterOrNullObject(). Index body.tables.items instead.',
+    },
+    {
+      id: 'table-values-nested',
+      test: /\btables?\s*[\w.]*\s*\.\s*load\s*\(\s*['"`][^'"`]*\bvalues\b/,
+      message: 'Table.values collapses nested or merged tables into one string. Load rows/items/cells/items/value, or call read_table.',
+    },
+  ];
+  const STRING_AWARE = new Set(['table-column-count', 'table-values-nested']);
+  for (const rule of API_RULES) {
+    const target = STRING_AWARE.has(rule.id) ? srcWithStrings : src;
+    if (rule.test.test(target)) {
+      warnings.push({ severity: 'correctness', id: rule.id, message: rule.message });
+    }
+  }
+
   if (/\b(document|window)\s*\.\s*(getElementById|querySelector|createElement)/.test(src)) {
     warnings.push({
       severity: 'correctness',
@@ -141,4 +187,30 @@ export function formatWarnings(warnings: CodeWarning[]): string {
 /** True when the code is wide enough that the user should look twice. */
 export function hasScopeWarning(warnings: CodeWarning[]): boolean {
   return warnings.some((w) => w.severity === 'scope');
+}
+
+
+/**
+ * Per-turn memory of scripts already run, so an identical re-run can be
+ * answered from the previous result instead of executing again. Observed in the
+ * wild: the same "dump every table" script four times in one task, each costing
+ * an approval and a round trip.
+ */
+const runHistory = new Map<string, string>();
+
+/** Normalise away formatting-only differences before comparing. */
+export function scriptKey(code: string): string {
+  return stripped(code).replace(/\s+/g, ' ').trim();
+}
+
+export function rememberRun(code: string, result: string): void {
+  runHistory.set(scriptKey(code), result);
+}
+
+export function previousRun(code: string): string | undefined {
+  return runHistory.get(scriptKey(code));
+}
+
+export function clearRunHistory(): void {
+  runHistory.clear();
 }
