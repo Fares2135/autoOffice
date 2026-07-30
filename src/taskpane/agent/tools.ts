@@ -1,7 +1,10 @@
 // src/taskpane/agent/tools.ts
 import { tool, jsonSchema } from 'ai';
 import { lookupSkills, listSkills } from '../skills/index.ts';
-import { inspectDocument, findText, readParagraphs } from '../executor/inspect.ts';
+import {
+  inspectDocument, findText, readParagraphs,
+  readComments, readTrackedChanges, readHeadersFooters,
+} from '../executor/inspect.ts';
 import { getFormatting, getStyles, readTable, restoreFormatting } from '../executor/formatting.ts';
 import type { HostKind } from '../host/context.ts';
 
@@ -226,6 +229,57 @@ export function makeRevertFormattingTool(
         return JSON.stringify(await restoreFormatting(host, paragraphs), null, 2);
       } catch (err) {
         return `Restore failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+/** Read-only tool factories for the collaboration surfaces of a document. */
+export function makeReadCommentsTool(host: HostKind) {
+  return tool({
+    description:
+      'Read the comments in the document with the text each one is anchored to, and whether it is ' +
+      'resolved. Read-only, no approval. Use it when the user refers to comments or asks you to ' +
+      'act on review feedback.',
+    inputSchema: jsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false }),
+    execute: async () => {
+      try {
+        return JSON.stringify(await readComments(host), null, 2);
+      } catch (err) {
+        return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+export function makeReadTrackedChangesTool(host: HostKind) {
+  return tool({
+    description:
+      'Read the tracked changes still pending in the document: author, type, date and text. ' +
+      'Read-only, no approval. Check this before rewriting text someone else is still reviewing — ' +
+      'an edit on top of pending revisions is hard for them to untangle.',
+    inputSchema: jsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false }),
+    execute: async () => {
+      try {
+        return JSON.stringify(await readTrackedChanges(host), null, 2);
+      } catch (err) {
+        return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+export function makeReadHeadersFootersTool(host: HostKind) {
+  return tool({
+    description:
+      'Read the primary header and footer text of every section. Read-only, no approval. ' +
+      'Headers and footers are not part of the body, so body searches never find their text.',
+    inputSchema: jsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false }),
+    execute: async () => {
+      try {
+        return JSON.stringify(await readHeadersFooters(host), null, 2);
+      } catch (err) {
+        return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });

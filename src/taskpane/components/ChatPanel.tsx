@@ -19,6 +19,7 @@ import {
   History24Regular,
   Add24Regular,
   Lightbulb24Regular,
+  Stop24Filled,
 } from '@fluentui/react-icons';
 import type { ChatMessage } from '../agent/orchestrator.ts';
 import type { HostContext } from '../host/context.ts';
@@ -125,6 +126,8 @@ interface ChatPanelProps {
   thinkingLevel: ThinkingLevel;
   onThinkingLevelChange: (level: ThinkingLevel) => void;
   onSend: (text: string) => void;
+  /** Aborts the running turn. */
+  onStop: () => void;
   onApprove: (approved: boolean) => void;
   onOpenSettings: () => void;
   onOpenHistory: () => void;
@@ -134,7 +137,7 @@ interface ChatPanelProps {
 export function ChatPanel({
   host, messages, isLoading, pendingApproval, activeChatHost, cost, providerId,
   modelId, thinkingLevel, onThinkingLevelChange,
-  onSend, onApprove, onOpenSettings, onOpenHistory, onNewChat,
+  onSend, onStop, onApprove, onOpenSettings, onOpenHistory, onNewChat,
 }: ChatPanelProps) {
   const styles = useStyles();
   const { t } = useTranslation();
@@ -290,13 +293,24 @@ export function ChatPanel({
             </MenuPopover>
           </Menu>
         )}
-        <Button
-          appearance="primary"
-          icon={<Send24Regular />}
-          aria-label={t('chat.sendButton')}
-          onClick={handleSubmit}
-          disabled={!inputText.trim() || isLoading}
-        />
+        {isLoading ? (
+          <Tooltip content={t('chat.stopButton')} relationship="label">
+            <Button
+              appearance="primary"
+              icon={<Stop24Filled />}
+              aria-label={t('chat.stopButton')}
+              onClick={onStop}
+            />
+          </Tooltip>
+        ) : (
+          <Button
+            appearance="primary"
+            icon={<Send24Regular />}
+            aria-label={t('chat.sendButton')}
+            onClick={handleSubmit}
+            disabled={!inputText.trim()}
+          />
+        )}
       </div>
     </div>
   );

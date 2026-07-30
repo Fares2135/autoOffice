@@ -18,6 +18,8 @@ export type TranslationKey =
   | "chat.sendButton"
   | "chat.settingsTooltip"
   | "chat.stepLimitReached"
+  | "chat.stopButton"
+  | "chat.stopped"
   | "chat.welcomeMessage"
   | "chat.welcomeTitle"
   | "code.approveButton"

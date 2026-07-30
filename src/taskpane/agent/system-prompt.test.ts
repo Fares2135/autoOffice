@@ -115,6 +115,18 @@ describe('buildSystemPrompt', () => {
     expect(p).toMatch(/read-only and need no user approval/);
   });
 
+  it('tells the model the body excludes headers, comments and tracked changes', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toMatch(/NOT part of the body/);
+    for (const tool of ['read_comments', 'read_tracked_changes', 'read_headers_footers']) {
+      expect(p).toContain(tool);
+    }
+  });
+
+  it('tells the model to act on the static check instead of repeating a pattern', () => {
+    expect(buildSystemPrompt('word', 'en')).toContain('Static check before running');
+  });
+
   it('bans context.sync() inside loops', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('NEVER call context.sync() inside a loop');
