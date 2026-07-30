@@ -10,6 +10,7 @@ import { generateTitle } from './agent/title.ts';
 import { Sandbox } from './executor/sandbox.ts';
 import { formatError } from './agent/errors.ts';
 import { loadSettings, saveSettings, type AppSettings } from './store/settings.ts';
+import type { ThinkingLevel } from './agent/thinking.ts';
 import {
   saveConversation,
   getConversation,
@@ -109,6 +110,16 @@ export function App({ host }: AppProps) {
   const handleSettingsChange = useCallback((newSettings: AppSettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
+  }, []);
+
+  // Lives next to the send box rather than in Settings: it is a per-request
+  // choice, but it persists so it survives a reload.
+  const handleThinkingLevelChange = useCallback((thinkingLevel: ThinkingLevel) => {
+    setSettings((prev) => {
+      const next = { ...prev, thinkingLevel };
+      saveSettings(next);
+      return next;
+    });
   }, []);
 
   const handleApprove = useCallback((approved: boolean) => {
@@ -344,6 +355,9 @@ export function App({ host }: AppProps) {
         activeChatHost={activeChatHost}
         cost={activeCost}
         providerId={settings.selectedProviderId}
+        modelId={settings.selectedModel}
+        thinkingLevel={settings.thinkingLevel}
+        onThinkingLevelChange={handleThinkingLevelChange}
         onSend={handleSend}
         onApprove={handleApprove}
         onOpenSettings={() => setShowSettings(true)}

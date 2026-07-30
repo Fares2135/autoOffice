@@ -1,3 +1,5 @@
+import type { ThinkingLevel } from '../agent/thinking.ts';
+
 export const LOCAL_PROVIDER_IDS = new Set(['ollama', 'lmstudio']);
 
 export interface McpServerConfig {
@@ -17,6 +19,8 @@ export interface ProviderConfig {
 export interface AppSettings {
   selectedProviderId: string;
   selectedModel: string;
+  /** Reasoning depth for models that expose one. 'auto' sends nothing. */
+  thinkingLevel: ThinkingLevel;
   providers: ProviderConfig[];
   autoApprove: boolean;
   mcpServers: McpServerConfig[];
@@ -27,6 +31,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   selectedProviderId: '',
   selectedModel: '',
+  thinkingLevel: 'auto',
   providers: [
     { id: 'anthropic', name: 'Anthropic', apiKey: '' },
     { id: 'openai', name: 'OpenAI', apiKey: '' },

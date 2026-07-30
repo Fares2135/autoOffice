@@ -4,6 +4,7 @@ import type { ChatMessage } from '../agent/orchestrator.ts';
 import { CodeBlock } from './CodeBlock.tsx';
 import { ToolActivity } from './ToolActivity.tsx';
 import { ErrorBubble } from './ErrorBubble.tsx';
+import { Markdown } from './Markdown.tsx';
 
 const useStyles = makeStyles({
   container: {
@@ -66,11 +67,21 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
 
   if (!message.content) return null;
 
-  const bubbleClass = message.role === 'user' ? styles.userBubble : styles.assistantBubble;
+  // Only assistant replies are markdown. User text stays literal so their own
+  // asterisks and underscores are not reinterpreted as formatting.
+  if (message.role === 'assistant') {
+    return (
+      <div className={styles.container}>
+        <div className={styles.assistantBubble}>
+          <Markdown>{message.content}</Markdown>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
-      <div className={bubbleClass}>
+      <div className={styles.userBubble}>
         <Text className={styles.messageText}>{message.content}</Text>
       </div>
     </div>

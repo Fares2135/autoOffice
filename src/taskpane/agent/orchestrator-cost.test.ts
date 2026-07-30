@@ -28,6 +28,7 @@ function makeSettings(providerId: string, modelId: string): AppSettings {
   return {
     selectedProviderId: providerId,
     selectedModel: modelId,
+    thinkingLevel: 'auto',
     providers: [{ id: providerId, name: providerId, apiKey: 'k' }],
     autoApprove: true,
     mcpServers: [],

@@ -117,5 +117,14 @@
   },
   "accessibility": {
     "languageChanged": "اللغة: {{language}}"
+  },
+  "thinking": {
+    "label": "مستوى التفكير",
+    "tooltip": "مستوى التفكير: {{level}}",
+    "auto": "تلقائي (افتراضي النموذج)",
+    "minimal": "الأدنى — الأسرع",
+    "low": "منخفض",
+    "medium": "متوسط",
+    "high": "عالٍ — الأدق"
   }
 }
