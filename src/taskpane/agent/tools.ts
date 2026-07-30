@@ -3,7 +3,7 @@ import { tool, jsonSchema } from 'ai';
 import { lookupSkills, listSkills } from '../skills/index.ts';
 import {
   inspectDocument, findText, readParagraphs,
-  readComments, readTrackedChanges, readHeadersFooters,
+  readComments, readTrackedChanges, readHeadersFooters, getSelection,
 } from '../executor/inspect.ts';
 import { getFormatting, getStyles, readTable, restoreFormatting } from '../executor/formatting.ts';
 import type { HostKind } from '../host/context.ts';
@@ -294,6 +294,32 @@ export function makeReadHeadersFootersTool(host: HostKind) {
     execute: async () => {
       try {
         return JSON.stringify(await readHeadersFooters(host), null, 2);
+      } catch (err) {
+        return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+/**
+ * Fresh selection state. The context attached to a message is a snapshot from
+ * send time; if the user moves the caret while the turn is running, or says
+ * "now this one", the model needs to look again rather than trust the snapshot.
+ */
+export function makeReadSelectionTool(host: HostKind) {
+  return tool({
+    description:
+      'Read what the user currently has selected: the text, its body paragraph index(es), style, ' +
+      'alignment, list membership, the table/row/cell it sits in, the nearest heading above it, ' +
+      'and whether it contains right-to-left script. Read-only, no approval. ' +
+      'A snapshot is already attached to the user message; call this only when the selection may ' +
+      'have moved since, or when that snapshot was missing what you need. ' +
+      'When the selection is empty the caret position is still meaningful — that is where "here" is.',
+    inputSchema: jsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false }),
+    execute: async () => {
+      try {
+        const sel = await getSelection(host);
+        return sel ? JSON.stringify(sel, null, 2) : 'No selection information is available in this host.';
       } catch (err) {
         return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
       }

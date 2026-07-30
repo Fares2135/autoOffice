@@ -12,6 +12,7 @@ import {
   makeReadCommentsTool,
   makeReadTrackedChangesTool,
   makeReadHeadersFootersTool,
+  makeReadSelectionTool,
 } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
@@ -34,6 +35,7 @@ const READ_ONLY_TOOLS = new Set([
   'inspect_document', 'find_text', 'read_paragraphs',
   'get_formatting', 'get_styles', 'read_table',
   'read_comments', 'read_tracked_changes', 'read_headers_footers',
+  'read_selection',
 ]);
 
 export type CodeBlockStatus = 'streaming' | 'pending' | 'rejected' | 'running' | 'success' | 'error';
@@ -239,6 +241,7 @@ export async function runAgent(
       read_comments: makeReadCommentsTool(host),
       read_tracked_changes: makeReadTrackedChangesTool(host),
       read_headers_footers: makeReadHeadersFootersTool(host),
+      read_selection: makeReadSelectionTool(host),
       revert_formatting: makeRevertFormattingTool(
         host,
         (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
