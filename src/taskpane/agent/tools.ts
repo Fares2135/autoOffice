@@ -13,6 +13,9 @@ const hostName = (host: HostKind) =>
 
 export function makeLookupSkillTool(host: HostKind) {
   const skills = listSkills(host);
+  // One factory per turn, so this set is the turn's history. Re-fetching a
+  // skill already in context wastes a step and tokens for nothing.
+  const alreadyFetched = new Set<string>();
   return tool({
     description:
       `Fetch office.js API documentation for one or more domains in ${hostName(host)}. ` +
@@ -32,7 +35,20 @@ export function makeLookupSkillTool(host: HostKind) {
       required: ['names'],
       additionalProperties: false,
     }),
-    execute: async ({ names }) => lookupSkills(host, names),
+    execute: async ({ names }) => {
+      const fresh = names.filter((n) => !alreadyFetched.has(n));
+      const repeats = names.filter((n) => alreadyFetched.has(n));
+      for (const n of fresh) alreadyFetched.add(n);
+
+      if (fresh.length === 0) {
+        return `Already provided earlier in this conversation: ${repeats.join(', ')}. ` +
+          `Scroll up rather than fetching again.`;
+      }
+      const body = lookupSkills(host, fresh);
+      return repeats.length
+        ? `${body}\n\n---\n\nSkipped, already provided earlier: ${repeats.join(', ')}.`
+        : body;
+    },
   });
 }
 

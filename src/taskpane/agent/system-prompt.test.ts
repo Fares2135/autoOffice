@@ -55,9 +55,10 @@ describe('buildSystemPrompt', () => {
     expect(p).toContain('Document text changed');
   });
 
-  it('points the model at inspect_document before editing', () => {
+  it('makes inspecting conditional on not already knowing the structure', () => {
     const p = buildSystemPrompt('word', 'en');
-    expect(p).toMatch(/inspect_document first/);
+    expect(p).toMatch(/Decide what you actually do not know yet/);
+    expect(p).toMatch(/If the edit depends on structure you have not seen, call inspect_document/);
   });
 
   it('forbids touching anything the user did not ask about', () => {
@@ -87,7 +88,7 @@ describe('buildSystemPrompt', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('find_text');
     expect(p).toContain('read_paragraphs');
-    expect(p).toMatch(/Never write a script whose only purpose is to read or search/);
+    expect(p).toMatch(/Never write a script whose only purpose is to read, search or verify/);
   });
 
   it('forbids guessing a previous formatting value', () => {
@@ -125,6 +126,32 @@ describe('buildSystemPrompt', () => {
 
   it('tells the model to act on the static check instead of repeating a pattern', () => {
     expect(buildSystemPrompt('word', 'en')).toContain('Static check before running');
+  });
+
+  it('carries a tool map naming every tool', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('TOOL MAP');
+    for (const tool of [
+      'inspect_document', 'find_text', 'read_paragraphs', 'get_formatting',
+      'get_styles', 'read_table', 'read_comments', 'read_tracked_changes',
+      'read_headers_footers', 'revert_formatting', 'lookup_skill', 'execute_code',
+    ]) {
+      expect(p).toContain(tool);
+    }
+  });
+
+  it('forbids redundant calls and redundant scripts', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('EFFICIENCY');
+    expect(p).toMatch(/Never call a tool to confirm something you already know/);
+    expect(p).toMatch(/Never look up the same skill twice/);
+    expect(p).toMatch(/One execute_code per logical change/);
+    expect(p).toMatch(/Stop when the task is done/);
+  });
+
+  it('no longer orders an unconditional inspect before every edit', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toMatch(/If you already know enough, skip straight to step 3/);
   });
 
   it('bans context.sync() inside loops', () => {
