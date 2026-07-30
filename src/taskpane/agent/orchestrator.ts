@@ -5,11 +5,16 @@ import {
   makeInspectDocumentTool,
   makeFindTextTool,
   makeReadParagraphsTool,
+  makeGetFormattingTool,
+  makeGetStylesTool,
+  makeReadTableTool,
+  makeRevertFormattingTool,
 } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
 import { thinkingProviderOptions } from './thinking.ts';
 import { getBodyText, getSelectionContext } from '../executor/inspect.ts';
+import { captureFormatting } from '../executor/formatting.ts';
 import { diffParagraphs, formatDiff } from '../executor/diff.ts';
 import { translationService } from '../i18n/index.ts';
 import type { HostKind } from '../host/context.ts';
@@ -19,6 +24,12 @@ import { getMcpTools } from '../mcp/client.ts';
 import { formatError, type FormattedError } from './errors.ts';
 import { extractPartialStringField } from './partial-json.ts';
 import { computeCallCost, sumCallCosts, emptyCallCost, type CallCost } from './pricing.ts';
+
+/** Tools that only read; used to label their activity in the transcript. */
+const READ_ONLY_TOOLS = new Set([
+  'inspect_document', 'find_text', 'read_paragraphs',
+  'get_formatting', 'get_styles', 'read_table',
+]);
 
 export type CodeBlockStatus = 'streaming' | 'pending' | 'rejected' | 'running' | 'success' | 'error';
 
@@ -125,6 +136,9 @@ export async function runAgent(
         // what actually changed, instead of the `undefined` most generated
         // code returns.
         const textBefore = await getBodyText(host);
+        // Formatting checkpoint: office.js keeps no history, so without this
+        // "put the colour back" can only guess — and it guesses black.
+        await captureFormatting(host);
         const result = await sandbox.execute(code, settings.executionTimeout);
         const logsStr = result.logs && result.logs.length ? `\nLogs:\n${result.logs.join('\n')}` : '';
 
@@ -203,6 +217,13 @@ export async function runAgent(
       inspect_document: makeInspectDocumentTool(host),
       find_text: makeFindTextTool(host),
       read_paragraphs: makeReadParagraphsTool(host),
+      get_formatting: makeGetFormattingTool(host),
+      get_styles: makeGetStylesTool(host),
+      read_table: makeReadTableTool(host),
+      revert_formatting: makeRevertFormattingTool(
+        host,
+        (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
+      ),
       lookup_skill: makeLookupSkillTool(host),
       execute_code: executeCode,
       ...mcpTools,
@@ -225,7 +246,7 @@ export async function runAgent(
             toolActivity: { toolName: names.join(', ') },
           });
         }
-        if (tc.toolName === 'inspect_document' || tc.toolName === 'find_text' || tc.toolName === 'read_paragraphs') {
+        if (READ_ONLY_TOOLS.has(tc.toolName)) {
           callbacks.onMessage({
             role: 'assistant',
             content: '',

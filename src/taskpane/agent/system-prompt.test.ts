@@ -90,6 +90,31 @@ describe('buildSystemPrompt', () => {
     expect(p).toMatch(/Never write a script whose only purpose is to read or search/);
   });
 
+  it('forbids guessing a previous formatting value', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('NEVER guess a previous value');
+    expect(p).toContain('revert_formatting');
+    expect(p).toMatch(/Black, Calibri and 11pt are not "the original"/);
+  });
+
+  it('tells the model to read formatting before writing it', () => {
+    expect(buildSystemPrompt('word', 'en')).toContain('get_formatting');
+  });
+
+  it('forbids inventing style names on a localised Word', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('get_styles');
+    expect(p).toMatch(/Never invent a style name/);
+  });
+
+  it('lists every read-only tool as approval-free', () => {
+    const p = buildSystemPrompt('word', 'en');
+    for (const tool of ['inspect_document', 'find_text', 'read_paragraphs', 'get_formatting', 'get_styles', 'read_table']) {
+      expect(p).toContain(tool);
+    }
+    expect(p).toMatch(/read-only and need no user approval/);
+  });
+
   it('bans context.sync() inside loops', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('NEVER call context.sync() inside a loop');

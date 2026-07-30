@@ -71,7 +71,8 @@
     "result": "النتيجة",
     "generatingCode": "جارٍ إنشاء الشيفرة…",
     "toolActivity": "بحث في: {{toolName}}",
-    "inspectActivity": "قرأ بنية المستند"
+    "inspectActivity": "قرأ بنية المستند",
+    "readActivity": "قرأ من المستند: {{toolName}}"
   },
   "cost": {
     "title": "تكلفة التشغيل",

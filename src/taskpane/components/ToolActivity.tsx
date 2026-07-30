@@ -14,6 +14,10 @@ const useStyles = makeStyles({
   },
 });
 
+const READ_ONLY_TOOLS = new Set([
+  'find_text', 'read_paragraphs', 'get_formatting', 'get_styles', 'read_table',
+]);
+
 export function ToolActivity({ toolName }: { toolName: string }) {
   const styles = useStyles();
   const { t } = useTranslation();
@@ -21,7 +25,9 @@ export function ToolActivity({ toolName }: { toolName: string }) {
   // reading as "looked up: inspect_document".
   const label = toolName === 'inspect_document'
     ? t('code.inspectActivity')
-    : t('code.toolActivity', { toolName });
+    : READ_ONLY_TOOLS.has(toolName)
+      ? t('code.readActivity', { toolName })
+      : t('code.toolActivity', { toolName });
   return (
     <div className={styles.container}>
       <Checkmark12Regular />

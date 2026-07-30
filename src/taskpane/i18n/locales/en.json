@@ -71,7 +71,8 @@
     "result": "Result",
     "generatingCode": "Generating code…",
     "toolActivity": "looked up: {{toolName}}",
-    "inspectActivity": "read the document structure"
+    "inspectActivity": "read the document structure",
+    "readActivity": "read from the document: {{toolName}}"
   },
   "cost": {
     "title": "Run cost",

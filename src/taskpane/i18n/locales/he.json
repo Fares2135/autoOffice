@@ -71,7 +71,8 @@
     "result": "תוצאה",
     "generatingCode": "יוצר קוד...",
     "toolActivity": "חיפש: {{toolName}}",
-    "inspectActivity": "קרא את מבנה המסמך"
+    "inspectActivity": "קרא את מבנה המסמך",
+    "readActivity": "קרא מהמסמך: {{toolName}}"
   },
   "cost": {
     "title": "עלות הריצה",
