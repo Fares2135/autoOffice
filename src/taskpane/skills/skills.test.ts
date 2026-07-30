@@ -56,3 +56,32 @@ describe('lookupSkills', () => {
     expect(lookupSkills('word', [])).toContain('not found');
   });
 });
+
+describe('lookup_skill de-duplication', () => {
+  it('returns the doc once, then points back at it', async () => {
+    const { makeLookupSkillTool } = await import('../agent/tools.ts');
+    const t = makeLookupSkillTool('word') as unknown as {
+      execute: (args: { names: string[] }) => Promise<string>;
+    };
+
+    const first = await t.execute({ names: ['tables'] });
+    expect(first).toContain('## Skill: tables');
+
+    const second = await t.execute({ names: ['tables'] });
+    expect(second).toMatch(/Already provided earlier/);
+    expect(second).not.toContain('## Skill: tables');
+
+    // A fresh domain still comes back in full, with the repeat noted.
+    const third = await t.execute({ names: ['tables', 'styles'] });
+    expect(third).toContain('## Skill: styles');
+    expect(third).toMatch(/Skipped, already provided earlier: tables/);
+  });
+
+  it('keeps separate history per turn (per factory call)', async () => {
+    const { makeLookupSkillTool } = await import('../agent/tools.ts');
+    const a = makeLookupSkillTool('word') as unknown as { execute: (x: { names: string[] }) => Promise<string> };
+    const b = makeLookupSkillTool('word') as unknown as { execute: (x: { names: string[] }) => Promise<string> };
+    await a.execute({ names: ['tables'] });
+    expect(await b.execute({ names: ['tables'] })).toContain('## Skill: tables');
+  });
+});
