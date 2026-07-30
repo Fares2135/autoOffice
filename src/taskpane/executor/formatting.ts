@@ -297,6 +297,42 @@ export function capGrid(values: string[][], maxCells = MAX_TABLE_CELLS): { grid:
   return { grid: out, truncated: false };
 }
 
+/** Cell values of a loaded table, row by row. The only reliable identity a table has. */
+export function gridOf(table: Word.Table): string[][] {
+  return table.rows.items.map((row) => row.cells.items.map((c) => c.value ?? ''));
+}
+
+/** Column widths in points, read off the first row — TableCell is the only place they live. */
+export function widthsOf(table: Word.Table): number[] | null {
+  return table.rows.items[0]?.cells.items.map((c) => c.columnWidth ?? 0) ?? null;
+}
+
+/**
+ * Pure: which body table a grid belongs to.
+ *
+ * Proxy objects are never identity-equal, so contents are the only key. Two
+ * tables really can hold the same values, so ambiguity is reported rather than
+ * resolved by picking the first — mislabelling the table is how an edit lands
+ * in the wrong one.
+ */
+export function locateGrid(
+  grids: string[][][],
+  target: string[][],
+): { index: number | null; candidates?: number[] } {
+  const key = JSON.stringify(target);
+  const hits = grids.reduce<number[]>((acc, g, i) => (JSON.stringify(g) === key ? [...acc, i] : acc), []);
+  if (hits.length === 1) return { index: hits[0] };
+  return { index: null, ...(hits.length > 1 ? { candidates: hits } : {}) };
+}
+
+/** Every body table's grid, loaded in a single sync. */
+export async function loadGrids(context: Word.RequestContext): Promise<string[][][]> {
+  const tables = context.document.body.tables;
+  tables.load('items/rows/items/cells/items/value');
+  await context.sync();
+  return tables.items.map(gridOf);
+}
+
 /**
  * Read-only table contents as a grid.
  *
@@ -324,11 +360,11 @@ export async function readTable(
     table.load('rows/items/cells/items/value,rows/items/cells/items/columnWidth');
     await context.sync();
 
-    const grid = table.rows.items.map((row) => row.cells.items.map((c) => c.value ?? ''));
+    const grid = gridOf(table);
     const capped = capGrid(grid);
     // Column widths are what "make this column narrower" needs, and they are
     // only on cells — Table has no columnCount or width at all.
-    const widths = table.rows.items[0]?.cells.items.map((c) => c.columnWidth ?? 0) ?? null;
+    const widths = widthsOf(table);
 
     return {
       table: index,
@@ -349,7 +385,7 @@ export async function readTable(
 export async function tableForParagraph(
   host: HostKind,
   paragraphIndex: number,
-): Promise<{ paragraph: number; table: number | null; rows: number; columns: number; values: string[][]; widthsPt: number[] | null } | { error: string }> {
+): Promise<{ paragraph: number; table: number | null; candidates?: number[]; rows: number; columns: number; values: string[][]; widthsPt: number[] | null } | { error: string }> {
   if (host !== 'word') return { error: `table_for_paragraph is only available in Word, not ${host}.` };
 
   return Word.run(async (context) => {
@@ -372,30 +408,17 @@ export async function tableForParagraph(
 
     parent.load('rows/items/cells/items/value,rows/items/cells/items/columnWidth');
     const tables = context.document.body.tables;
-    tables.load('items/rowCount');
+    tables.load('items/rows/items/cells/items/value');
     await context.sync();
 
-    const grid = parent.rows.items.map((row) => row.cells.items.map((c) => c.value ?? ''));
-    const widths = parent.rows.items[0]?.cells.items.map((c) => c.columnWidth ?? 0) ?? null;
-
-    // Position among body tables, by matching the grid. Proxy identity never
-    // works, so content is the only reliable key.
-    const key = JSON.stringify(grid);
-    let index: number | null = null;
-    for (let i = 0; i < tables.items.length; i++) {
-      const t = tables.items[i];
-      t.load('rows/items/cells/items/value');
-      await context.sync();
-      const candidate = JSON.stringify(t.rows.items.map((r) => r.cells.items.map((c) => c.value ?? '')));
-      if (candidate === key) {
-        index = i;
-        break;
-      }
-    }
+    const grid = gridOf(parent);
+    const widths = widthsOf(parent);
+    const located = locateGrid(tables.items.map(gridOf), grid);
 
     return {
       paragraph: paragraphIndex,
-      table: index,
+      table: located.index,
+      ...(located.candidates ? { candidates: located.candidates } : {}),
       rows: parent.rowCount,
       columns: grid[0]?.length ?? 0,
       values: capGrid(grid).grid,

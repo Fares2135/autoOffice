@@ -1,10 +1,15 @@
 # Tables — Creation, Rows, Columns, Cells
 
 ## Key Types
-- `Word.Table` — rows, columns, values, style, getCell(), addRows(), addColumns(), getBorder()
+- `Word.Table` — rows, values, rowCount, style, getCell(), addRows(), addColumns(), getBorder()
 - `Word.TableRow` — cells, font, horizontalAlignment, shadingColor
-- `Word.TableCell` — body, value, columnWidth, shadingColor
+- `Word.TableCell` — body, value, columnWidth, rowIndex, cellIndex, shadingColor
 - `Word.TableBorder` — type, color, width
+
+There is **no `Table.columns`** and **no `Table.columnCount`**. A column is just
+"the cell at index *c* of every row". `table.columns.items` is a TypeError
+waiting to happen — and the reason several real attempts at "resize these
+columns" produced nothing at all.
 
 ## Create a Table
 
@@ -231,9 +236,21 @@ await Word.run(async (context) => {
 
 ## Column widths
 
-`TableCell.width` is **read-only**. Assigning it silently does nothing — the
-script reports success and the document is unchanged. The settable property is
-`columnWidth`, in points (1 inch = 72 points).
+**Use the `set_column_width` tool.** It takes the table index, the column
+indexes and a width in inches or points, writes every row, reads the widths back
+and tells you which ones Word kept. One call, and it cannot make any of the
+mistakes below.
+
+The mistakes, for when you have to recognise them in existing code:
+
+- `table.columns` — does not exist
+- `cell.width = x` — read-only, assignment is silently ignored
+- setting one cell's `columnWidth` — changes that cell only, not the column
+- a table set to AutoFit — snaps the columns back on the next layout pass, and
+  office.js reports success anyway
+
+The settable property is `columnWidth`, in points (1 inch = 72 points), on every
+cell of the column:
 
 ```javascript
 const tables = context.document.body.tables;
@@ -299,3 +316,39 @@ await context.sync();
 The `find_text` tool flags hits that sit inside a table, and
 `table_for_paragraph` does this walk for you and returns the grid, the column
 count and the current widths — two calls instead of a series of dumps.
+
+## Which cells has the user selected?
+
+Do not try to work this out from a script, and do not infer a column count from
+the selected text. `getSelection().parentTableCellOrNullObject` is a **null
+object whenever the selection covers more than one cell** — which is every
+"these columns" request — so it answers with nothing and the next guess is
+usually wrong.
+
+The selection note attached to the user's message already carries it:
+
+```
+inside table 2 (7 rows × 6 columns); selection covers COLUMN(S) 1, 2, 3, 4, 5
+in full (all 7 rows); current column widths — col 0: 1.2" (86.4pt), col 1: 0.9" …
+```
+
+`read_selection` returns the same thing as JSON (`cells`, `selectedRows`,
+`selectedColumns`, `wholeColumns`, `columnWidthsPt`). Pass `table` and
+`selectedColumns` straight to `set_column_width`.
+
+If you ever need it in a script: each *paragraph* inside a cell does have a
+parent cell, and that is where the row and column come from.
+
+```javascript
+const range = context.document.getSelection();
+const paras = range.paragraphs;
+paras.load("items");
+await context.sync();
+
+const cells = paras.items.map(p => p.parentTableCellOrNullObject);
+cells.forEach(c => c.load("isNullObject,rowIndex,cellIndex"));
+await context.sync();
+
+const covered = cells.filter(c => !c.isNullObject)
+  .map(c => ({ row: c.rowIndex, column: c.cellIndex }));
+```

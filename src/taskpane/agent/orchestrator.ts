@@ -15,13 +15,15 @@ import {
   makeReadSelectionTool,
   makeTableForParagraphTool,
   makeReplaceTextTool,
+  makeSetColumnWidthTool,
+  makeApplyFormattingTool,
 } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
 import { thinkingProviderOptions } from './thinking.ts';
 import { getBodyText, getSelectionContext } from '../executor/inspect.ts';
 import { captureFormatting } from '../executor/formatting.ts';
-import { lintCode, formatWarnings, previousRun, rememberRun, clearRunHistory } from '../executor/lint.ts';
+import { lintCode, formatWarnings, previousRun, rememberRun, clearRunHistory, noOpNote } from '../executor/lint.ts';
 import {
   diffParagraphs, formatDiff, attachContext,
   setLastEditTargets, getLastEditTargets,
@@ -176,9 +178,11 @@ export async function runAgent(
         if (result.success) {
           const textAfter = textBefore === null ? null : await getBodyText(host);
           let diffText = '';
+          let textUnchanged = false;
           if (textBefore !== null && textAfter !== null) {
             const diff = diffParagraphs(textBefore, textAfter);
             diffText = formatDiff(diff);
+            textUnchanged = diff.unchanged;
             // Remember the target so the next message's "it" resolves here.
             if (diff.changedIndexes.length > 0) setLastEditTargets(diff.changedIndexes);
           }
@@ -199,6 +203,7 @@ export async function runAgent(
           return [
             `Code executed successfully. Output: ${JSON.stringify(result.output)}`,
             diffText,
+            noOpNote(code, result.output, textUnchanged, result.logs),
             warningText,
             logsStr,
           ].filter(Boolean).join('\n');
@@ -268,6 +273,14 @@ export async function runAgent(
         (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
       ),
       revert_formatting: makeRevertFormattingTool(
+        host,
+        (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
+      ),
+      set_column_width: makeSetColumnWidthTool(
+        host,
+        (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
+      ),
+      apply_formatting: makeApplyFormattingTool(
         host,
         (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
       ),

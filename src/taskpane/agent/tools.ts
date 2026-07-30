@@ -7,6 +7,7 @@ import {
 } from '../executor/inspect.ts';
 import { getFormatting, getStyles, readTable, restoreFormatting, tableForParagraph } from '../executor/formatting.ts';
 import { planInDocument, applyReplacements, formatPlan } from '../executor/replace.ts';
+import { setColumnWidth, applyFormatting, PT_PER_INCH, type FormatProps } from '../executor/edit.ts';
 import type { HostKind } from '../host/context.ts';
 
 const hostName = (host: HostKind) =>
@@ -313,8 +314,10 @@ export function makeReadSelectionTool(host: HostKind) {
   return tool({
     description:
       'Read what the user currently has selected: the text, its body paragraph index(es), style, ' +
-      'alignment, list membership, the table/row/cell it sits in, the nearest heading above it, ' +
-      'and whether it contains right-to-left script. Read-only, no approval. ' +
+      'alignment, list membership, the nearest heading above it, and whether it contains ' +
+      'right-to-left script. Inside a table it also returns the table index, every selected cell, ' +
+      'the rows and columns they span, whether whole columns are covered, and each column\'s current ' +
+      'width in points — so "these columns" never has to be guessed. Read-only, no approval. ' +
       'A snapshot is already attached to the user message; call this only when the selection may ' +
       'have moved since, or when that snapshot was missing what you need. ' +
       'When the selection is empty the caret position is still meaningful — that is where "here" is.',
@@ -426,6 +429,163 @@ export function makeReplaceTextTool(
         return JSON.stringify(await applyReplacements(host, plans), null, 2);
       } catch (err) {
         return `Replace failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+/**
+ * Column widths, done properly.
+ *
+ * The failing transcript that motivated this spent fifteen steps on it: the
+ * model reached for Table.columns (does not exist), then TableCell.width
+ * (read-only, assignment silently ignored), then guessed the column count from
+ * the selected text. One call now covers the whole task, and it verifies the
+ * result instead of trusting it.
+ */
+export function makeSetColumnWidthTool(
+  host: HostKind,
+  requestApproval: (summary: string) => Promise<boolean>,
+) {
+  return tool({
+    description:
+      'Set the width of one or more whole table columns. Use this instead of writing a script: ' +
+      'Word.Table has no columns collection and TableCell.width is read-only, so hand-written ' +
+      'attempts silently do nothing. ' +
+      'Give the width in inches (widthInches) or points (widthPoints) — 1 inch = 72 points. ' +
+      'When the user has selected cells, the selection note already names the table and the ' +
+      'selected columns; pass those and do not go looking for them again. ' +
+      'The result reports the widths Word actually kept, so read it before answering.',
+    inputSchema: jsonSchema<{
+      table: number;
+      columns: number[];
+      widthInches?: number;
+      widthPoints?: number;
+    }>({
+      type: 'object',
+      properties: {
+        table: { type: 'number', description: '0-based table index, e.g. from the selection note or inspect_document' },
+        columns: {
+          type: 'array',
+          items: { type: 'number' },
+          description: '0-based column indexes to resize. Every row of these columns is set.',
+        },
+        widthInches: { type: 'number', description: 'Target width in inches, e.g. 0.6' },
+        widthPoints: { type: 'number', description: 'Target width in points. Use instead of widthInches, not as well.' },
+      },
+      required: ['table', 'columns'],
+      additionalProperties: false,
+    }),
+    execute: async ({ table, columns, widthInches, widthPoints }) => {
+      try {
+        if (widthInches === undefined && widthPoints === undefined) {
+          return 'Give a width: widthInches or widthPoints.';
+        }
+        if (widthInches !== undefined && widthPoints !== undefined) {
+          return 'Give either widthInches or widthPoints, not both.';
+        }
+        const widthPt = widthPoints ?? widthInches! * PT_PER_INCH;
+        const label = widthInches !== undefined ? `${widthInches}"` : `${widthPoints}pt`;
+        const approved = await requestApproval(
+          `Set column(s) ${columns.join(', ')} of table ${table} to ${label}`,
+        );
+        if (!approved) return 'User declined the width change.';
+        return JSON.stringify(await setColumnWidth(host, table, columns, widthPt), null, 2);
+      } catch (err) {
+        return `set_column_width failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+/**
+ * Formatting with the scope as a parameter.
+ *
+ * "Make this bold" used to mean generated code that decided its own target, and
+ * the wrong target is the most-reported complaint. Here the target is either the
+ * selection or explicit paragraph indexes — nothing else is possible — and the
+ * checkpoint taken first is what lets revert_formatting restore the real
+ * previous values instead of assuming black.
+ */
+export function makeApplyFormattingTool(
+  host: HostKind,
+  requestApproval: (summary: string) => Promise<boolean>,
+) {
+  return tool({
+    description:
+      'Apply formatting to the current selection or to specific paragraphs: bold, italic, ' +
+      'underline, size, font name, colour, highlight, alignment, or a named paragraph style. ' +
+      'Use this instead of writing a formatting script. ' +
+      'target "selection" formats exactly what the user has selected — correct for a phrase inside ' +
+      'a paragraph, which a paragraph-level script would over-format. ' +
+      'Only pass the properties you are changing. Colours are hex, e.g. "#C00000". ' +
+      'For a named style, take the name from get_styles verbatim. ' +
+      'The result lists what actually changed per paragraph; a "nothing changed" note means the ' +
+      'values were already set, so do not repeat the call.',
+    inputSchema: jsonSchema<{
+      target: 'selection' | 'paragraphs';
+      paragraphs?: number[];
+      bold?: boolean;
+      italic?: boolean;
+      underline?: string;
+      size?: number;
+      fontName?: string;
+      color?: string;
+      highlightColor?: string;
+      alignment?: string;
+      style?: string;
+    }>({
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          enum: ['selection', 'paragraphs'],
+          description: 'What to format. "selection" is what the user is pointing at right now.',
+        },
+        paragraphs: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Required when target is "paragraphs": 0-based body paragraph indexes.',
+        },
+        bold: { type: 'boolean' },
+        italic: { type: 'boolean' },
+        underline: {
+          type: 'string',
+          enum: ['None', 'Single', 'Double', 'Dotted', 'Dashed', 'Wave', 'Thick'],
+        },
+        size: { type: 'number', description: 'Font size in points' },
+        fontName: { type: 'string' },
+        color: { type: 'string', description: 'Hex colour, e.g. "#C00000"' },
+        highlightColor: { type: 'string', description: 'Hex highlight colour' },
+        alignment: {
+          type: 'string',
+          enum: ['Left', 'Centered', 'Right', 'Justified'],
+          description: 'Paragraph alignment. Applies to whole paragraphs even for a partial selection.',
+        },
+        style: { type: 'string', description: 'Paragraph style name, exactly as get_styles reports it' },
+      },
+      required: ['target'],
+      additionalProperties: false,
+    }),
+    execute: async ({ target, paragraphs, ...props }) => {
+      try {
+        if (target === 'paragraphs' && (!paragraphs || paragraphs.length === 0)) {
+          return 'target "paragraphs" needs the paragraphs array. Use target "selection" for what the user has selected.';
+        }
+        const where = target === 'selection' ? 'the selection' : `paragraph(s) ${paragraphs!.join(', ')}`;
+        const what = Object.entries(props)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => `${k}: ${String(v)}`)
+          .join(', ');
+        const approved = await requestApproval(`Format ${where} — ${what}`);
+        if (!approved) return 'User declined the formatting change.';
+
+        const scope = target === 'selection'
+          ? ({ selection: true } as const)
+          : ({ paragraphs: paragraphs! });
+        return JSON.stringify(await applyFormatting(host, scope, props as FormatProps), null, 2);
+      } catch (err) {
+        return `apply_formatting failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   });
