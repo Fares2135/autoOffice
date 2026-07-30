@@ -23,6 +23,7 @@ const settings: AppSettings = {
   autoApprove: false,
   mcpServers: [],
   maxRetries: 3,
+  maxSteps: 30,
   executionTimeout: 30000,
 };
 

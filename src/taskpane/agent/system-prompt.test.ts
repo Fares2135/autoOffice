@@ -60,6 +60,36 @@ describe('buildSystemPrompt', () => {
     expect(p).toMatch(/inspect_document first/);
   });
 
+  it('forbids touching anything the user did not ask about', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('Change exactly what was asked and nothing else');
+    expect(p).toMatch(/narrowest range/);
+  });
+
+  it('refuses to treat a scoped request as a whole-document licence', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toMatch(/NEVER a licence to operate on the whole document/);
+    expect(p).toContain('document.body');
+  });
+
+  it('names the whole-document operations to treat as destructive, per host', () => {
+    expect(buildSystemPrompt('word', 'en')).toContain('body.clear()');
+    expect(buildSystemPrompt('excel', 'en')).toMatch(/every sheet or slide/);
+  });
+
+  it('tells the model to report an over-broad edit instead of claiming success', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toMatch(/outside what was asked/);
+    expect(p).toContain('Ctrl+Z');
+  });
+
+  it('points the model at the read-only tools instead of read-only scripts', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('find_text');
+    expect(p).toContain('read_paragraphs');
+    expect(p).toMatch(/Never write a script whose only purpose is to read or search/);
+  });
+
   it('bans context.sync() inside loops', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('NEVER call context.sync() inside a loop');

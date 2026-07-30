@@ -24,7 +24,8 @@
     "hostPowerpoint": "PowerPoint",
     "hostNounWord": "מסמך",
     "hostNounExcel": "גיליון",
-    "hostNounPowerpoint": "מצגת"
+    "hostNounPowerpoint": "מצגת",
+    "stepLimitReached": "נעצר לאחר {{steps}} קריאות לכלים בלי לסיים. שלח \"המשך\" כדי להמשיך, או הגדל את המגבלה בהגדרות."
   },
   "settings": {
     "title": "הגדרות",
@@ -54,7 +55,8 @@
     "lmstudioStatusConnected": "מחובר · {{count}} מודלים",
     "lmstudioStatusUnreachable": "לא פעיל",
     "lmstudioCorsHint": "פתחו את LM Studio ← Developer ← הפעילו CORS, או הריצו \"lms server start --cors\" במסוף.",
-    "lmstudioRefreshAria": "רענן את רשימת המודלים"
+    "lmstudioRefreshAria": "רענן את רשימת המודלים",
+    "maxStepsLabel": "מספר קריאות הכלים המרבי לבקשה"
   },
   "code": {
     "approveButton": "אישור והרצה",
