@@ -20,7 +20,10 @@ import { thinkingProviderOptions } from './thinking.ts';
 import { getBodyText, getSelectionContext } from '../executor/inspect.ts';
 import { captureFormatting } from '../executor/formatting.ts';
 import { lintCode, formatWarnings } from '../executor/lint.ts';
-import { diffParagraphs, formatDiff } from '../executor/diff.ts';
+import {
+  diffParagraphs, formatDiff, attachContext,
+  setLastEditTargets, getLastEditTargets,
+} from '../executor/diff.ts';
 import { translationService } from '../i18n/index.ts';
 import type { HostKind } from '../host/context.ts';
 import type { AppSettings } from '../store/settings.ts';
@@ -101,9 +104,7 @@ export async function runAgent(
     ...conversationHistory,
     {
       role: 'user',
-      content: selection
-        ? `${userMessage}\n\n[Current selection — ${selection}]`
-        : userMessage,
+      content: attachContext(userMessage, selection, getLastEditTargets()),
     },
   ];
 
@@ -160,9 +161,13 @@ export async function runAgent(
 
         if (result.success) {
           const textAfter = textBefore === null ? null : await getBodyText(host);
-          const diffText = textBefore !== null && textAfter !== null
-            ? formatDiff(diffParagraphs(textBefore, textAfter))
-            : '';
+          let diffText = '';
+          if (textBefore !== null && textAfter !== null) {
+            const diff = diffParagraphs(textBefore, textAfter);
+            diffText = formatDiff(diff);
+            // Remember the target so the next message's "it" resolves here.
+            if (diff.changedIndexes.length > 0) setLastEditTargets(diff.changedIndexes);
+          }
 
           const outputText = result.output === undefined
             ? 'undefined'

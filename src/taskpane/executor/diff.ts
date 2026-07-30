@@ -17,6 +17,11 @@ export interface TextDiff {
   unchanged: boolean;
   /** Document was too large to diff line by line; counts are approximate. */
   countsOnly: boolean;
+  /**
+   * Paragraph indexes (in the document as it is now) that the edit produced.
+   * Lets a follow-up "make it bigger" resolve to what was just changed.
+   */
+  changedIndexes: number[];
 }
 
 /**
@@ -42,7 +47,7 @@ export function diffParagraphs(before: string, after: string): TextDiff {
   // Compare paragraphs, not raw strings: Word hands back \r while generated
   // code may write \n, and a newline-flavour change is not a text change.
   if (a.length === b.length && a.every((line, i) => line === b[i])) {
-    return { added: 0, removed: 0, hunks: [], truncated: false, unchanged: true, countsOnly: false };
+    return { added: 0, removed: 0, hunks: [], truncated: false, unchanged: true, countsOnly: false, changedIndexes: [] };
   }
 
   // Trim the identical head and tail so the LCS only sees the changed middle.
@@ -66,6 +71,7 @@ export function diffParagraphs(before: string, after: string): TextDiff {
       truncated: true,
       unchanged: false,
       countsOnly: true,
+      changedIndexes: [],
     };
   }
 
@@ -80,6 +86,7 @@ export function diffParagraphs(before: string, after: string): TextDiff {
   }
 
   const hunks: string[] = [];
+  const changedIndexes: number[] = [];
   let added = 0;
   let removed = 0;
   let i = 0;
@@ -94,6 +101,7 @@ export function diffParagraphs(before: string, after: string): TextDiff {
       i++;
     } else {
       hunks.push(`+ ${clip(midB[j])}`);
+      changedIndexes.push(head + j);
       added++;
       j++;
     }
@@ -104,6 +112,7 @@ export function diffParagraphs(before: string, after: string): TextDiff {
   }
   for (; j < m; j++) {
     hunks.push(`+ ${clip(midB[j])}`);
+    changedIndexes.push(head + j);
     added++;
   }
 
@@ -115,7 +124,39 @@ export function diffParagraphs(before: string, after: string): TextDiff {
     truncated,
     unchanged: false,
     countsOnly: false,
+    changedIndexes,
   };
+}
+
+// What the previous edit touched, so "it" in the next message has a referent.
+// ponytail: one slot, replaced each edit. That matches how people actually talk
+// — "it" means the last thing, not the thing before that.
+let lastEditTargets: number[] = [];
+
+export function setLastEditTargets(indexes: number[]): void {
+  lastEditTargets = indexes;
+}
+
+export function getLastEditTargets(): number[] {
+  return lastEditTargets;
+}
+
+/**
+ * Pure: assembles the context note that rides along with the user's message.
+ * Kept separate so it is testable — losing this note is what makes the model
+ * ask "which part?" about something the user already pointed at.
+ */
+export function attachContext(
+  userMessage: string,
+  selectionNote: string | null,
+  lastEdit: number[] = [],
+): string {
+  const notes: string[] = [];
+  if (selectionNote) notes.push(`[Current selection — ${selectionNote}]`);
+  if (lastEdit.length > 0) {
+    notes.push(`[Your previous edit changed paragraph(s) ${lastEdit.join(', ')} — "it" and "that" refer here]`);
+  }
+  return notes.length > 0 ? `${userMessage}\n\n${notes.join('\n')}` : userMessage;
 }
 
 /** Human- and model-readable rendering of a diff. */

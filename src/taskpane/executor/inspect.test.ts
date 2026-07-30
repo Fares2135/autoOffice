@@ -36,7 +36,7 @@ describe('preview', () => {
   });
 });
 
-import { nearestHeading, resolveIndexes, formatSelection } from './inspect.ts';
+import { nearestHeading, resolveIndexes, formatSelection, isPartialSelection } from './inspect.ts';
 
 describe('nearestHeading', () => {
   const doc = [
@@ -89,7 +89,8 @@ describe('resolveIndexes', () => {
 
 describe('formatSelection', () => {
   const base = {
-    empty: false, text: 'hello', paragraphs: [3], style: 'Normal',
+    empty: false, text: 'hello', partial: false, paragraphText: 'hello',
+    font: null, paragraphs: [3], style: 'Normal',
     alignment: 'Left', isListItem: false, rtl: false,
     section: null, table: null,
   };
@@ -127,5 +128,62 @@ describe('formatSelection', () => {
     const text = formatSelection({ ...base, text: 'مرحبا', rtl: true, isListItem: true })!;
     expect(text).toContain('contains right-to-left script');
     expect(text).toContain('inside a list');
+  });
+});
+
+describe('isPartialSelection', () => {
+  it('is true when only part of the paragraph is selected', () => {
+    expect(isPartialSelection('third quarter', 'The third quarter report is ready.')).toBe(true);
+  });
+
+  it('is false when the whole paragraph is selected', () => {
+    expect(isPartialSelection('The report is ready.', 'The report is ready.')).toBe(false);
+  });
+
+  it('ignores whitespace and trailing paragraph marks', () => {
+    expect(isPartialSelection('The report is ready.', '  The report   is ready.\r')).toBe(false);
+  });
+
+  it('is false for an empty selection or empty paragraph', () => {
+    expect(isPartialSelection('', 'anything')).toBe(false);
+    expect(isPartialSelection('anything', '')).toBe(false);
+  });
+
+  it('works on Arabic text', () => {
+    expect(isPartialSelection('الربع الثالث', 'تقرير الربع الثالث جاهز')).toBe(true);
+    expect(isPartialSelection('تقرير الربع الثالث جاهز', 'تقرير الربع الثالث جاهز')).toBe(false);
+  });
+});
+
+describe('formatSelection — partial selections and live formatting', () => {
+  const base = {
+    empty: false, text: 'third quarter', partial: true,
+    paragraphText: 'The third quarter report is ready.',
+    font: { name: 'Calibri', size: 11, bold: false, italic: false, color: '#C00000' },
+    paragraphs: [3], style: 'Normal', alignment: 'Left',
+    isListItem: false, rtl: false, section: null, table: null,
+  };
+
+  it('warns loudly that the paragraph is not the target', () => {
+    const text = formatSelection(base)!;
+    expect(text).toContain('PARTIAL selection');
+    expect(text).toMatch(/not the whole paragraph/);
+    expect(text).toContain('The third quarter report is ready.');
+  });
+
+  it('reports the current formatting, so "make it like before" has a value to use', () => {
+    expect(formatSelection(base)!).toContain('colour #C00000');
+  });
+
+  it('reports an ambiguous table index instead of naming the wrong table', () => {
+    const text = formatSelection({
+      ...base, table: { index: null, candidates: [0, 2], row: 1, cell: 0 },
+    })!;
+    expect(text).toMatch(/index ambiguous, candidates: 0, 2/);
+  });
+
+  it('says the index is unknown when it cannot be matched at all', () => {
+    const text = formatSelection({ ...base, table: { index: null, row: null, cell: null } })!;
+    expect(text).toContain('table (index unknown)');
   });
 });
