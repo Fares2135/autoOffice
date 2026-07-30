@@ -117,5 +117,14 @@
   },
   "accessibility": {
     "languageChanged": "Language: {{language}}"
+  },
+  "thinking": {
+    "label": "Reasoning depth",
+    "tooltip": "Reasoning depth: {{level}}",
+    "auto": "Automatic (model default)",
+    "minimal": "Minimal — fastest",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High — most thorough"
   }
 }

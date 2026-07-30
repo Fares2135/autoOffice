@@ -7,12 +7,18 @@ import {
   Button,
   Text,
   Tooltip,
+  Menu,
+  MenuTrigger,
+  MenuPopover,
+  MenuList,
+  MenuItemRadio,
 } from '@fluentui/react-components';
 import {
   Send24Regular,
   Settings24Regular,
   History24Regular,
   Add24Regular,
+  Lightbulb24Regular,
 } from '@fluentui/react-icons';
 import type { ChatMessage } from '../agent/orchestrator.ts';
 import type { HostContext } from '../host/context.ts';
@@ -23,6 +29,11 @@ import { MessageBubble } from './MessageBubble.tsx';
 import { CodeBlock } from './CodeBlock.tsx';
 import { CostBadge } from './CostBadge.tsx';
 import type { CallCost } from '../agent/pricing.ts';
+import {
+  availableLevels,
+  supportsThinkingControl,
+  type ThinkingLevel,
+} from '../agent/thinking.ts';
 
 const useStyles = makeStyles({
   container: {
@@ -108,6 +119,11 @@ interface ChatPanelProps {
   cost: CallCost | undefined;
   /** Currently-selected provider id, used to label local-model costs as free. */
   providerId?: string;
+  /** Currently-selected model id, used to offer only the reasoning levels it accepts. */
+  modelId?: string;
+  /** Reasoning depth for models that expose one. */
+  thinkingLevel: ThinkingLevel;
+  onThinkingLevelChange: (level: ThinkingLevel) => void;
   onSend: (text: string) => void;
   onApprove: (approved: boolean) => void;
   onOpenSettings: () => void;
@@ -117,6 +133,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({
   host, messages, isLoading, pendingApproval, activeChatHost, cost, providerId,
+  modelId, thinkingLevel, onThinkingLevelChange,
   onSend, onApprove, onOpenSettings, onOpenHistory, onNewChat,
 }: ChatPanelProps) {
   const styles = useStyles();
@@ -132,6 +149,10 @@ export function ChatPanel({
     'chat.hostNounPowerpoint',
   );
   const [inputText, setInputText] = useState('');
+  // Gemini-only for now: every other provider spells reasoning effort
+  // differently, so the control stays hidden rather than lying.
+  const showThinking = supportsThinkingControl(providerId, modelId);
+  const levels = availableLevels(modelId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -238,6 +259,37 @@ export function ChatPanel({
           disabled={isLoading}
           rows={1}
         />
+        {showThinking && (
+          <Menu
+            checkedValues={{ thinking: [thinkingLevel] }}
+            onCheckedValueChange={(_, data) =>
+              onThinkingLevelChange(data.checkedItems[0] as ThinkingLevel)
+            }
+          >
+            <MenuTrigger disableButtonEnhancement>
+              <Tooltip
+                content={t('thinking.tooltip', { level: t(`thinking.${thinkingLevel}` as never) })}
+                relationship="label"
+              >
+                <Button
+                  appearance={thinkingLevel === 'auto' ? 'subtle' : 'outline'}
+                  icon={<Lightbulb24Regular />}
+                  aria-label={t('thinking.label')}
+                  disabled={isLoading}
+                />
+              </Tooltip>
+            </MenuTrigger>
+            <MenuPopover>
+              <MenuList>
+                {levels.map((level) => (
+                  <MenuItemRadio key={level} name="thinking" value={level}>
+                    {t(`thinking.${level}` as never)}
+                  </MenuItemRadio>
+                ))}
+              </MenuList>
+            </MenuPopover>
+          </Menu>
+        )}
         <Button
           appearance="primary"
           icon={<Send24Regular />}

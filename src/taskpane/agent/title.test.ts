@@ -18,6 +18,7 @@ import type { ModelMessage } from 'ai';
 const settings: AppSettings = {
   selectedProviderId: 'anthropic',
   selectedModel: 'claude-opus-4-7',
+  thinkingLevel: 'auto',
   providers: [{ id: 'anthropic', name: 'Anthropic', apiKey: 'k' }],
   autoApprove: false,
   mcpServers: [],

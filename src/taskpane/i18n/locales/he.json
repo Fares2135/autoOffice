@@ -117,5 +117,14 @@
   },
   "accessibility": {
     "languageChanged": "שפה: {{language}}"
+  },
+  "thinking": {
+    "label": "עומק החשיבה",
+    "tooltip": "עומק החשיבה: {{level}}",
+    "auto": "אוטומטי (ברירת המחדל של המודל)",
+    "minimal": "מינימלי — המהיר ביותר",
+    "low": "נמוך",
+    "medium": "בינוני",
+    "high": "גבוה — המעמיק ביותר"
   }
 }

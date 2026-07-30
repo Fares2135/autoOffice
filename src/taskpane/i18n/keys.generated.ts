@@ -100,4 +100,11 @@ export type TranslationKey =
   | "settings.providerPlaceholder"
   | "settings.providerSection"
   | "settings.timeoutLabel"
-  | "settings.title";
+  | "settings.title"
+  | "thinking.auto"
+  | "thinking.high"
+  | "thinking.label"
+  | "thinking.low"
+  | "thinking.medium"
+  | "thinking.minimal"
+  | "thinking.tooltip";

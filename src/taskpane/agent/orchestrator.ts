@@ -3,6 +3,7 @@ import { createModel } from './providers.ts';
 import { makeLookupSkillTool, makeInspectDocumentTool } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
+import { thinkingProviderOptions } from './thinking.ts';
 import { getBodyText, getSelectionContext } from '../executor/inspect.ts';
 import { diffParagraphs, formatDiff } from '../executor/diff.ts';
 import { translationService } from '../i18n/index.ts';
@@ -179,10 +180,17 @@ export async function runAgent(
   let capturedStreamError: unknown;
 
   const systemPrompt = buildSystemPrompt(host, translationService.getLocale(), probeCapabilities(host));
+  const providerOptions = thinkingProviderOptions(
+    settings.selectedProviderId,
+    settings.selectedModel,
+    settings.thinkingLevel,
+  );
+
   const result = streamText({
     model,
     system: systemPrompt,
     messages,
+    ...(providerOptions ? { providerOptions } : {}),
     tools: {
       inspect_document: makeInspectDocumentTool(host),
       lookup_skill: makeLookupSkillTool(host),
