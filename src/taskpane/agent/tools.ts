@@ -5,7 +5,7 @@ import {
   inspectDocument, findText, readParagraphs,
   readComments, readTrackedChanges, readHeadersFooters, getSelection,
 } from '../executor/inspect.ts';
-import { getFormatting, getStyles, readTable, restoreFormatting } from '../executor/formatting.ts';
+import { getFormatting, getStyles, readTable, restoreFormatting, tableForParagraph } from '../executor/formatting.ts';
 import type { HostKind } from '../host/context.ts';
 
 const hostName = (host: HostKind) =>
@@ -184,8 +184,10 @@ export function makeGetStylesTool(host: HostKind) {
 export function makeReadTableTool(host: HostKind) {
   return tool({
     description:
-      'Read a table\'s cells as a grid of strings, by table index from inspect_document. ' +
-      'Read-only, no approval. Use it instead of writing a script to load table values.',
+      'Read a table\'s cells as a grid of strings, plus its row and column counts and the current ' +
+      'column widths in points, by table index from inspect_document. Read-only, no approval. ' +
+      'Reads cell by cell, so it is correct on tables where Table.values collapses everything into ' +
+      'one string. Use it instead of writing a script to load table values.',
     inputSchema: jsonSchema<{ index: number }>({
       type: 'object',
       properties: {
@@ -320,6 +322,37 @@ export function makeReadSelectionTool(host: HostKind) {
       try {
         const sel = await getSelection(host);
         return sel ? JSON.stringify(sel, null, 2) : 'No selection information is available in this host.';
+      } catch (err) {
+        return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+}
+
+/**
+ * Identify a table from its contents: find the text, then ask which table that
+ * paragraph belongs to. This is the reliable path when several tables look
+ * alike, and it replaces a long series of exploratory dumps.
+ */
+export function makeTableForParagraphTool(host: HostKind) {
+  return tool({
+    description:
+      'Given a body paragraph index — typically a find_text hit whose inTable flag is true — return ' +
+      'the table that contains it: its index among the document tables, row and column counts, its ' +
+      'cell grid, and the current column widths in points. Read-only, no approval. ' +
+      'This is how to identify a table by its contents when several tables look similar: find_text ' +
+      'the distinctive cell text, then call this with the hit paragraph index.',
+    inputSchema: jsonSchema<{ paragraph: number }>({
+      type: 'object',
+      properties: {
+        paragraph: { type: 'number', description: 'Body paragraph index (0-based), e.g. from find_text' },
+      },
+      required: ['paragraph'],
+      additionalProperties: false,
+    }),
+    execute: async ({ paragraph }) => {
+      try {
+        return JSON.stringify(await tableForParagraph(host, paragraph), null, 2);
       } catch (err) {
         return `Read failed: ${err instanceof Error ? err.message : String(err)}`;
       }

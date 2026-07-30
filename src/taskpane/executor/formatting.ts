@@ -297,29 +297,109 @@ export function capGrid(values: string[][], maxCells = MAX_TABLE_CELLS): { grid:
   return { grid: out, truncated: false };
 }
 
-/** Read-only table contents as a grid. */
+/**
+ * Read-only table contents as a grid.
+ *
+ * Reads cell by cell rather than Table.values: on a table with nested content
+ * or merged cells, values collapses the whole table into one string full of
+ * tabs and paragraph marks, which is worse than useless — the model sees
+ * garbage, stops trusting the tool, and falls back to writing scripts.
+ */
 export async function readTable(
   host: HostKind,
   index: number,
-): Promise<{ table: number; rows: number; columns: number; values: string[][]; truncated: boolean } | { error: string }> {
+): Promise<{ table: number; rows: number; columns: number; values: string[][]; truncated: boolean; widthsPt: number[] | null } | { error: string }> {
   if (host !== 'word') return { error: `read_table is only available in Word, not ${host}.` };
 
   return Word.run(async (context) => {
     const tables = context.document.body.tables;
-    tables.load('items/values,items/rowCount');
+    tables.load('items/rowCount');
     await context.sync();
 
     const table = tables.items[index];
     if (!table) {
       return { error: `No table at index ${index}. The document has ${tables.items.length}.` };
     }
-    const capped = capGrid(table.values ?? []);
+
+    table.load('rows/items/cells/items/value,rows/items/cells/items/columnWidth');
+    await context.sync();
+
+    const grid = table.rows.items.map((row) => row.cells.items.map((c) => c.value ?? ''));
+    const capped = capGrid(grid);
+    // Column widths are what "make this column narrower" needs, and they are
+    // only on cells — Table has no columnCount or width at all.
+    const widths = table.rows.items[0]?.cells.items.map((c) => c.columnWidth ?? 0) ?? null;
+
     return {
       table: index,
       rows: table.rowCount,
-      columns: capped.grid[0]?.length ?? 0,
+      columns: grid[0]?.length ?? 0,
       values: capped.grid,
       truncated: capped.truncated,
+      widthsPt: widths,
+    };
+  });
+}
+
+/**
+ * Which table contains a given body paragraph, and its grid. This is the path
+ * that actually works when a table has to be identified from its contents:
+ * locate the text, then walk up to its parentTable.
+ */
+export async function tableForParagraph(
+  host: HostKind,
+  paragraphIndex: number,
+): Promise<{ paragraph: number; table: number | null; rows: number; columns: number; values: string[][]; widthsPt: number[] | null } | { error: string }> {
+  if (host !== 'word') return { error: `table_for_paragraph is only available in Word, not ${host}.` };
+
+  return Word.run(async (context) => {
+    const paragraphs = context.document.body.paragraphs;
+    paragraphs.load('items');
+    await context.sync();
+
+    const paragraph = paragraphs.items[paragraphIndex];
+    if (!paragraph) {
+      return { error: `No paragraph at index ${paragraphIndex}. The document has ${paragraphs.items.length}.` };
+    }
+
+    const parent = paragraph.parentTableOrNullObject;
+    parent.load('isNullObject,rowCount');
+    await context.sync();
+
+    if (parent.isNullObject) {
+      return { error: `Paragraph ${paragraphIndex} is not inside a table.` };
+    }
+
+    parent.load('rows/items/cells/items/value,rows/items/cells/items/columnWidth');
+    const tables = context.document.body.tables;
+    tables.load('items/rowCount');
+    await context.sync();
+
+    const grid = parent.rows.items.map((row) => row.cells.items.map((c) => c.value ?? ''));
+    const widths = parent.rows.items[0]?.cells.items.map((c) => c.columnWidth ?? 0) ?? null;
+
+    // Position among body tables, by matching the grid. Proxy identity never
+    // works, so content is the only reliable key.
+    const key = JSON.stringify(grid);
+    let index: number | null = null;
+    for (let i = 0; i < tables.items.length; i++) {
+      const t = tables.items[i];
+      t.load('rows/items/cells/items/value');
+      await context.sync();
+      const candidate = JSON.stringify(t.rows.items.map((r) => r.cells.items.map((c) => c.value ?? '')));
+      if (candidate === key) {
+        index = i;
+        break;
+      }
+    }
+
+    return {
+      paragraph: paragraphIndex,
+      table: index,
+      rows: parent.rowCount,
+      columns: grid[0]?.length ?? 0,
+      values: capGrid(grid).grid,
+      widthsPt: widths,
     };
   });
 }

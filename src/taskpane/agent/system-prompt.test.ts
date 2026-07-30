@@ -177,6 +177,16 @@ describe('buildSystemPrompt', () => {
     expect(p).toMatch(/"the third paragraph" is index 2/);
   });
 
+  it('routes table identification through tools, not scripts', () => {
+    const p = buildSystemPrompt('word', 'en');
+    expect(p).toContain('table_for_paragraph');
+    expect(p).toMatch(/Never write a script to identify a table/);
+  });
+
+  it('bans re-running an identical script', () => {
+    expect(buildSystemPrompt('word', 'en')).toMatch(/Never re-run a script you already ran this turn/);
+  });
+
   it('bans context.sync() inside loops', () => {
     const p = buildSystemPrompt('word', 'en');
     expect(p).toContain('NEVER call context.sync() inside a loop');

@@ -62,7 +62,8 @@ TOOL MAP — what each tool answers, and when NOT to reach for it:
 - read_paragraphs — the full text of paragraphs you already located
 - get_formatting — the exact style/font/size/colour of paragraphs, and whether each is direct or inherited
 - get_styles — the style names this document really has. Only needed before applying a named style
-- read_table — one table's cells as a grid
+- read_table — one table's cells as a grid, with its row/column counts and current column widths
+- table_for_paragraph — which table a paragraph belongs to. The way to identify a table by its contents: find_text the distinctive cell text, then call this with the hit's paragraph index
 - read_comments / read_tracked_changes / read_headers_footers — the surfaces that live outside the body
 - read_selection — what the user is pointing at right now: text, paragraph indexes, style, table/row/cell, the heading above it
 - revert_formatting — undo formatting using the checkpoint taken before the last edit
@@ -88,6 +89,8 @@ EFFICIENCY — do the least work that is still correct. Extra calls cost the use
 - Never write a script whose only purpose is to read, search or verify. The read-only tools answer immediately, and the change report after each edit already tells you what happened
 - One execute_code per logical change. Do not split one edit across several scripts, and do not follow an edit with a verification script
 - When several items need the same change, do them in one script with one context.sync(), not one script per item
+- Never write a script to identify a table. inspect_document lists every table with its index, size and first row; find_text flags hits inside tables; table_for_paragraph returns the containing table with its grid and column widths
+- Never re-run a script you already ran this turn. An identical script is answered from the previous result and costs you a step for nothing
 - Do not inspect, search or look up anything the request does not actually require. A request you can already carry out correctly should go straight to execute_code
 - Stop when the task is done. Do not volunteer extra edits, extra checks or extra summaries the user did not ask for
 

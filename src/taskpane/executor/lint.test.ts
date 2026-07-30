@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { lintCode, formatWarnings, hasScopeWarning } from './lint.ts';
 
 const ids = (code: string, host: 'word' | 'excel' | 'powerpoint' = 'word') =>
@@ -127,5 +127,69 @@ describe('formatWarnings / hasScopeWarning', () => {
   it('separates scope risk from mere performance advice', () => {
     expect(hasScopeWarning(lintCode('context.document.body.clear(); await context.sync();', 'word'))).toBe(true);
     expect(hasScopeWarning(lintCode('for (const p of items) { await context.sync(); }', 'word'))).toBe(false);
+  });
+});
+
+import { scriptKey, rememberRun, previousRun, clearRunHistory } from './lint.ts';
+
+describe('lintCode — APIs that cost real turns', () => {
+  it('catches the silent no-op: assigning TableCell.width', () => {
+    const w = lintCode('row.cells.items[0].width = 43.2; await context.sync();', 'word');
+    expect(w.map(x => x.id)).toContain('cell-width-readonly');
+    expect(w.find(x => x.id === 'cell-width-readonly')!.message).toContain('columnWidth');
+  });
+
+  it('catches Table.columnCount, which does not exist', () => {
+    expect(ids('tables.load("items/values, items/columnCount"); await context.sync();'))
+      .toContain('table-column-count');
+    expect(ids('const c = table.columnCount;')).toContain('table-column-count');
+  });
+
+  it('catches paragraphs.getItemAt(), which does not exist', () => {
+    expect(ids('const p = context.document.body.paragraphs.getItemAt(516);'))
+      .toContain('paragraphs-get-item-at');
+  });
+
+  it('catches table.getBeforeOrNullObject(), which does not exist', () => {
+    expect(ids('const t = table.getBeforeOrNullObject();')).toContain('table-get-before');
+  });
+
+  it('warns that Table.values collapses nested tables', () => {
+    expect(ids('tables.load("items/values"); await context.sync();')).toContain('table-values-nested');
+  });
+
+  it('does not warn about the correct cell-by-cell load', () => {
+    expect(ids('table.load("rows/items/cells/items/value"); await context.sync();'))
+      .not.toContain('table-values-nested');
+  });
+
+  it('does not warn about the correct columnWidth assignment', () => {
+    expect(ids('row.cells.items[0].columnWidth = 43.2; await context.sync();'))
+      .not.toContain('cell-width-readonly');
+  });
+});
+
+describe('run history', () => {
+  beforeEach(() => clearRunHistory());
+
+  it('treats whitespace and comment differences as the same script', () => {
+    expect(scriptKey('a();  // note\n b();')).toBe(scriptKey('a();\nb();'));
+  });
+
+  it('recalls the previous result for an identical script', () => {
+    rememberRun('doThing();', 'result A');
+    expect(previousRun('doThing();')).toBe('result A');
+    expect(previousRun(' doThing();  ')).toBe('result A');
+  });
+
+  it('does not confuse two different scripts', () => {
+    rememberRun('doThing();', 'A');
+    expect(previousRun('doOther();')).toBeUndefined();
+  });
+
+  it('is cleared between turns', () => {
+    rememberRun('x();', 'A');
+    clearRunHistory();
+    expect(previousRun('x();')).toBeUndefined();
   });
 });
