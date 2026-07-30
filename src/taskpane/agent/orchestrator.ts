@@ -9,12 +9,16 @@ import {
   makeGetStylesTool,
   makeReadTableTool,
   makeRevertFormattingTool,
+  makeReadCommentsTool,
+  makeReadTrackedChangesTool,
+  makeReadHeadersFootersTool,
 } from './tools.ts';
 import { buildSystemPrompt } from './system-prompt.ts';
 import { probeCapabilities } from './capabilities.ts';
 import { thinkingProviderOptions } from './thinking.ts';
 import { getBodyText, getSelectionContext } from '../executor/inspect.ts';
 import { captureFormatting } from '../executor/formatting.ts';
+import { lintCode, formatWarnings } from '../executor/lint.ts';
 import { diffParagraphs, formatDiff } from '../executor/diff.ts';
 import { translationService } from '../i18n/index.ts';
 import type { HostKind } from '../host/context.ts';
@@ -29,6 +33,7 @@ import { computeCallCost, sumCallCosts, emptyCallCost, type CallCost } from './p
 const READ_ONLY_TOOLS = new Set([
   'inspect_document', 'find_text', 'read_paragraphs',
   'get_formatting', 'get_styles', 'read_table',
+  'read_comments', 'read_tracked_changes', 'read_headers_footers',
 ]);
 
 export type CodeBlockStatus = 'streaming' | 'pending' | 'rejected' | 'running' | 'success' | 'error';
@@ -76,6 +81,7 @@ export async function runAgent(
   sandbox: Sandbox,
   host: HostKind,
   callbacks: OrchestratorCallbacks,
+  abortSignal?: AbortSignal,
 ): Promise<ModelMessage[]> {
   const model = createModel(settings);
   const { tools: mcpTools, failures: mcpFailures } = await getMcpTools(settings.mcpServers);
@@ -121,8 +127,16 @@ export async function runAgent(
     }),
     execute: async ({ code }, { toolCallId }) => {
       try {
+        // Surface static warnings while the user can still decline, and give
+        // the model the same list so it can narrow the edit itself.
+        const warnings = lintCode(code, host);
+        const warningText = formatWarnings(warnings);
         if (!settings.autoApprove) {
-          callbacks.onUpsertCodeBlock(toolCallId, { code, status: 'pending' });
+          callbacks.onUpsertCodeBlock(toolCallId, {
+            code,
+            status: 'pending',
+            ...(warningText ? { result: warningText } : {}),
+          });
         }
         const approved = settings.autoApprove || await callbacks.requestApproval(code);
         if (!approved) {
@@ -163,6 +177,7 @@ export async function runAgent(
           return [
             `Code executed successfully. Output: ${JSON.stringify(result.output)}`,
             diffText,
+            warningText,
             logsStr,
           ].filter(Boolean).join('\n');
         }
@@ -212,6 +227,7 @@ export async function runAgent(
     model,
     system: systemPrompt,
     messages,
+    ...(abortSignal ? { abortSignal } : {}),
     ...(providerOptions ? { providerOptions } : {}),
     tools: {
       inspect_document: makeInspectDocumentTool(host),
@@ -220,6 +236,9 @@ export async function runAgent(
       get_formatting: makeGetFormattingTool(host),
       get_styles: makeGetStylesTool(host),
       read_table: makeReadTableTool(host),
+      read_comments: makeReadCommentsTool(host),
+      read_tracked_changes: makeReadTrackedChangesTool(host),
+      read_headers_footers: makeReadHeadersFootersTool(host),
       revert_formatting: makeRevertFormattingTool(
         host,
         (summary) => settings.autoApprove ? Promise.resolve(true) : callbacks.requestApproval(summary),
@@ -297,6 +316,15 @@ export async function runAgent(
     }
     if (capturedStreamError) throw capturedStreamError;
   } catch (err) {
+    // A user-initiated stop is not an error; say it plainly and keep the
+    // messages produced so far.
+    if (abortSignal?.aborted || (err as Error)?.name === 'AbortError') {
+      callbacks.onMessage({
+        role: 'assistant',
+        content: translationService.t('chat.stopped'),
+      });
+      return messages;
+    }
     const provider = settings.providers.find(p => p.id === settings.selectedProviderId)?.name;
     const formatted = formatError(capturedStreamError ?? err, {
       phase: 'stream',

@@ -25,7 +25,9 @@
     "hostNounWord": "מסמך",
     "hostNounExcel": "גיליון",
     "hostNounPowerpoint": "מצגת",
-    "stepLimitReached": "נעצר לאחר {{steps}} קריאות לכלים בלי לסיים. שלח \"המשך\" כדי להמשיך, או הגדל את המגבלה בהגדרות."
+    "stepLimitReached": "נעצר לאחר {{steps}} קריאות לכלים בלי לסיים. שלח \"המשך\" כדי להמשיך, או הגדל את המגבלה בהגדרות.",
+    "stopButton": "עצור",
+    "stopped": "נעצר לפי בקשתך."
   },
   "settings": {
     "title": "הגדרות",

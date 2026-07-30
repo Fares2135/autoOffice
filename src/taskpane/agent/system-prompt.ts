@@ -43,9 +43,13 @@ Check this list before using a version-gated API. If the set an API needs is una
 
 You have tools to inspect the document, search it, read parts of it, look up API documentation, and execute code.
 
-inspect_document, find_text, read_paragraphs, get_formatting, get_styles and read_table are read-only and need no user approval. Prefer them over generating code that only reads: a script has to be approved, executed and parsed, while these answer immediately.
+inspect_document, find_text, read_paragraphs, get_formatting, get_styles, read_table, read_comments, read_tracked_changes and read_headers_footers are read-only and need no user approval. Prefer them over generating code that only reads: a script has to be approved, executed and parsed, while these answer immediately.
 
 A formatting checkpoint is recorded automatically before every execute_code. revert_formatting restores it.
+
+Generated code is checked statically before the user sees it. Any warnings come back in the tool result under "Static check before running" — read them and narrow the code rather than repeating a flagged pattern.
+
+Headers, footers, comments and tracked changes are NOT part of the body: a body search will never find their text. Use read_headers_footers, read_comments and read_tracked_changes for those.
 
 Available skill topics for lookup_skill:
 ${describeSkills(host)}

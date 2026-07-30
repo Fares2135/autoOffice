@@ -25,7 +25,9 @@
     "hostNounWord": "document",
     "hostNounExcel": "workbook",
     "hostNounPowerpoint": "presentation",
-    "stepLimitReached": "Stopped after {{steps}} tool calls without finishing. Send \"continue\" to carry on, or raise the step limit in Settings."
+    "stepLimitReached": "Stopped after {{steps}} tool calls without finishing. Send \"continue\" to carry on, or raise the step limit in Settings.",
+    "stopButton": "Stop",
+    "stopped": "Stopped at your request."
   },
   "settings": {
     "title": "Settings",

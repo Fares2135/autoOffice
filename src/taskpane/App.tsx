@@ -64,6 +64,7 @@ export function App({ host }: AppProps) {
   const conversationHistory = useRef<ModelMessage[]>([]);
   const sandboxRef = useRef<Sandbox | null>(null);
   const approvalResolveRef = useRef<((approved: boolean) => void) | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Hydrate the most recent conversation for this host on mount.
@@ -120,6 +121,17 @@ export function App({ host }: AppProps) {
       saveSettings(next);
       return next;
     });
+  }, []);
+
+  // Stop the turn: abort the model stream and release any approval the run is
+  // blocked on, otherwise the promise would never settle.
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+    if (approvalResolveRef.current) {
+      approvalResolveRef.current(false);
+      approvalResolveRef.current = null;
+      setPendingApproval(null);
+    }
   }, []);
 
   const handleApprove = useCallback((approved: boolean) => {
@@ -200,6 +212,8 @@ export function App({ host }: AppProps) {
 
     setMessages(prev => [...prev, { role: 'user', content: text }]);
     setIsLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     let turnCost: CallCost | null = null;
 
@@ -260,6 +274,7 @@ export function App({ host }: AppProps) {
         sandboxRef.current!,
         host.kind,
         callbacks,
+        controller.signal,
       );
       conversationHistory.current = history;
     } catch (e) {
@@ -268,6 +283,7 @@ export function App({ host }: AppProps) {
     } finally {
       setIsLoading(false);
       setPendingApproval(null);
+      abortRef.current = null;
     }
 
     // Snapshot the latest in-memory state by reading back from setState.
@@ -359,6 +375,7 @@ export function App({ host }: AppProps) {
         thinkingLevel={settings.thinkingLevel}
         onThinkingLevelChange={handleThinkingLevelChange}
         onSend={handleSend}
+        onStop={handleStop}
         onApprove={handleApprove}
         onOpenSettings={() => setShowSettings(true)}
         onOpenHistory={() => setShowHistory(true)}

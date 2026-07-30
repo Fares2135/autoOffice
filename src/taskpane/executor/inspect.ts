@@ -284,3 +284,99 @@ export async function getSelectionContext(host: HostKind): Promise<string | null
     return null;
   }
 }
+
+const MAX_COMMENTS = 50;
+const MAX_REVISIONS = 50;
+
+/**
+ * Comments with the text they are anchored to. Needs WordApi 1.4; returns a
+ * clear reason rather than throwing when the client is older.
+ */
+export async function readComments(
+  host: HostKind,
+  probe: SetProbe = officeProbe,
+): Promise<{ comments: Array<{ author: string; text: string; anchoredTo: string; resolved: boolean }>; total: number; truncated: boolean } | { error: string }> {
+  if (host !== 'word') return { error: `read_comments is only available in Word, not ${host}.` };
+  if (!probe('WordApi', '1.4')) return { error: 'Reading comments needs WordApi 1.4, which this client does not support.' };
+
+  return Word.run(async (context) => {
+    const comments = context.document.body.getComments();
+    comments.load('items/authorName,items/content,items/resolved');
+    const ranges = comments.load('items');
+    await context.sync();
+
+    const anchors = ranges.items.map((c) => {
+      const range = c.getRange();
+      range.load('text');
+      return range;
+    });
+    await context.sync();
+
+    const all = comments.items.map((c, i) => ({
+      author: c.authorName,
+      text: preview(c.content, 300),
+      anchoredTo: preview(anchors[i]?.text ?? '', 120),
+      resolved: c.resolved,
+    }));
+    const capped = capList(all, MAX_COMMENTS);
+    return { comments: capped.items, total: all.length, truncated: capped.truncated };
+  });
+}
+
+/**
+ * Tracked changes still pending in the document. Needs WordApi 1.6.
+ * Knowing these exist changes how an edit should be made, so the model should
+ * check before rewriting text someone else is still reviewing.
+ */
+export async function readTrackedChanges(
+  host: HostKind,
+  probe: SetProbe = officeProbe,
+): Promise<{ changes: Array<{ author: string; type: string; date: string; text: string }>; total: number; truncated: boolean } | { error: string }> {
+  if (host !== 'word') return { error: `read_tracked_changes is only available in Word, not ${host}.` };
+  if (!probe('WordApi', '1.6')) return { error: 'Reading tracked changes needs WordApi 1.6, which this client does not support.' };
+
+  return Word.run(async (context) => {
+    const revisions = context.document.body.getTrackedChanges();
+    revisions.load('items/author,items/type,items/date,items/text');
+    await context.sync();
+
+    const all = revisions.items.map((r) => ({
+      author: r.author,
+      type: String(r.type),
+      date: String(r.date),
+      text: preview(r.text ?? '', 200),
+    }));
+    const capped = capList(all, MAX_REVISIONS);
+    return { changes: capped.items, total: all.length, truncated: capped.truncated };
+  });
+}
+
+/** Header and footer text per section — otherwise only reachable by writing a script. */
+export async function readHeadersFooters(
+  host: HostKind,
+): Promise<{ sections: Array<{ section: number; header: string; footer: string }> } | { error: string }> {
+  if (host !== 'word') return { error: `read_headers_footers is only available in Word, not ${host}.` };
+
+  return Word.run(async (context) => {
+    const sections = context.document.sections;
+    sections.load('items');
+    await context.sync();
+
+    const parts = sections.items.map((s) => {
+      const header = s.getHeader(Word.HeaderFooterType.primary);
+      const footer = s.getFooter(Word.HeaderFooterType.primary);
+      header.load('text');
+      footer.load('text');
+      return { header, footer };
+    });
+    await context.sync();
+
+    return {
+      sections: parts.map((p, i) => ({
+        section: i,
+        header: preview(p.header.text, 300),
+        footer: preview(p.footer.text, 300),
+      })),
+    };
+  });
+}
